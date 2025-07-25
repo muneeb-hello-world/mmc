@@ -1,0 +1,28 @@
+<?php
+
+namespace App\Models;
+
+use App\Models\Doctor;
+use App\Models\Service;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+
+class DoctorServiceShare extends Model
+{
+     use HasFactory;
+
+    protected $fillable = [
+        'doctor_id', 'service_id',
+        'price', 'doctor_share_percent', 'hospital_share_percent'
+    ];
+
+    public function doctor()
+    {
+        return $this->belongsTo(Doctor::class);
+    }
+
+    public function service()
+    {
+        return $this->belongsTo(Service::class);
+    }
+}
