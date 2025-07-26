@@ -9,6 +9,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Service extends Model
 {
+    protected $casts = [
+    'is_doctor_related' => 'boolean',
+];
      use HasFactory;
 
     protected $fillable = ['name', 'is_doctor_related', 'default_price'];

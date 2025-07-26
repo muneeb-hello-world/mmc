@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('doctors', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->foreignId('user_id')->constrained()->onDelete('cascade'); // if you're linking to Laravel users
+            $table->foreignId('user_id')->nullable()->constrained()->onDelete('cascade'); // if you're linking to Laravel users
             $table->string('specialization');
             $table->text('days')->nullable(); // e.g. "Mon,Tue,Thu"
             $table->time('start_time')->nullable();

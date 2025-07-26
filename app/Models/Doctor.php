@@ -18,6 +18,10 @@ class Doctor extends Model
         'name', 'user_id', 'specialization',
         'days', 'start_time', 'end_time', 'is_on_payroll'
     ];
+    protected $casts = [
+
+        'is_on_payroll' => 'boolean'
+];
 
     public function serviceShares()
     {
