@@ -9,4 +9,5 @@ new class extends Component {
 <div>
     <livewire:doctorsmanagmentcomponent/>
     <livewire:servicesmanagmentcomponent/>
+    <livewire:doctorservicesharemanagementcomponent/>
 </div>

@@ -18,7 +18,11 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('settings/password', 'settings.password')->name('settings.password');
     Volt::route('settings/appearance', 'settings.appearance')->name('settings.appearance');
 
-    Volt::route('admin', 'AdminComponent')->name('admin');
+    // Volt::route('admin', 'AdminComponent')->name('admin');
+    Volt::route('admin/serviceshare', 'DoctorServiceShareManagementComponent')->name('admin.serviceshare');
+    Volt::route('admin/doctorsmanagment', 'DoctorsManagementComponent')->name('admin.doctors');
+    Volt::route('admin/servicesmanagment', 'ServicesManagementComponent')->name('admin.services');
+    Volt::route('reception', 'Reception')->name('reception');
 
 });
 

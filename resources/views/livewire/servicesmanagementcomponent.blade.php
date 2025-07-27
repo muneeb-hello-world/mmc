@@ -2,16 +2,19 @@
 
 use Livewire\Volt\Component;
 use App\Models\Service;
-use Barryvdh\Debugbar\Facades\Debugbar;
+use App\Traits\ToastHelper;
+
 
 
 new class extends Component {
+  use ToastHelper;
   public $services = [];
   public $name;
   public $price;
   public $isDocRelated = 0;
   public $isModelCreating = 1;
   public $service_id;
+
 
   public function mount()
   {
@@ -37,12 +40,14 @@ new class extends Component {
     ]);
 
     if ($service) {
-      session()->flash('message', 'Service created successfully.');
+      // session()->flash('message', 'Service created successfully.');
+      $this->showToast('success','Service created successfully.');
       $this->reset(['name', 'price', 'isDocRelated']);
       Flux::modal('add-service')->close();
       $this->GetServices();
     } else {
-      session()->flash('error', 'Failed to create Service.');
+      // session()->flash('error', 'Failed to create Service.');
+      $this->showToast('danger','Failed to create Service.');
     }
   }
 
@@ -58,7 +63,8 @@ new class extends Component {
 
       Flux::modal('add-service')->show();
     } else {
-      session()->flash('error', 'Service not found.');
+      // session()->flash('error', 'Service not found.');
+      $this->showToast('danger','Service not found.');
     }
   }
 
@@ -74,17 +80,14 @@ new class extends Component {
   public function UpdateService()
   {
     // dd('hee');
-    Debugbar::info('check 1');
 
     $this->validate([
       'name' => 'required',
-      'price' => 'required | numeric',
+      'price' => 'required | integer',
       'isDocRelated' => 'required | boolean'
     ]);
-    Debugbar::info($this->service_id);
     
     $service = Service::find($this->service_id);
-    Debugbar::info($service);
 
     if ($service) {
       $service->update([
@@ -92,13 +95,13 @@ new class extends Component {
         'default_price' => $this->price,
         'is_doctor_related' => $this->isDocRelated
       ]);
-    Debugbar::info('check 2 updated'.$this->isDocRelated);
 
-      session()->flash('message', 'Service updated successfully.');
+      // session()->flash('message', 'Service updated successfully.');
+      $this->showToast('success','Service updated successfully.');
       Flux::modal('add-service')->close();
       $this->GetServices();
     } else {
-      session()->flash('error', 'Failed to update Service.');
+      $this->showToast('danger','Failed to update Service.');
     }
   }
 

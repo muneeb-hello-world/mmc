@@ -12,8 +12,17 @@
             </a>
 
             <flux:navlist variant="outline">
-                <flux:navlist.group :heading="__('Platform')" class="grid">
+                <flux:navlist.group :heading="__('Reception')" class="grid">
                     <flux:navlist.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>{{ __('Dashboard') }}</flux:navlist.item>
+                    <flux:navlist.item icon="bolt" :href="route('reception')" :current="request()->routeIs('reception')" wire:navigate>{{ __('Reception') }}</flux:navlist.item>
+                </flux:navlist.group>
+            </flux:navlist>
+            <flux:navlist variant="outline">
+                <flux:navlist.group :heading="__('Admin')" class="grid">
+                    <flux:navlist.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>{{ __('Dashboard') }}</flux:navlist.item>
+                    <flux:navlist.item icon="user" :href="route('admin.doctors')" :current="request()->routeIs('admin.doctors')" wire:navigate>{{ __('Doctors') }}</flux:navlist.item>
+                    <flux:navlist.item icon="chart-bar" :href="route('admin.services')" :current="request()->routeIs('admin.services')" wire:navigate>{{ __('Services') }}</flux:navlist.item>
+                    <flux:navlist.item icon="presentation-chart-line" :href="route('admin.serviceshare')" :current="request()->routeIs('admin.serviceshare')" wire:navigate>{{ __('Service Share') }}</flux:navlist.item>
                 </flux:navlist.group>
             </flux:navlist>
 

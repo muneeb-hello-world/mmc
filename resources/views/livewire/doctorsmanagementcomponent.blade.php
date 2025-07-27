@@ -2,9 +2,11 @@
 
 use Livewire\Volt\Component;
 use App\Models\Doctor;
-        use Carbon\Carbon;
+use App\Traits\ToastHelper;
+use Carbon\Carbon;
 
 new class extends Component {
+    use ToastHelper;
     public $onpayroll = false;
     public $days = [];
     public $name;
@@ -23,7 +25,7 @@ public $isModelCreating = 1;
 
 public function CreateDoc()
 {
-    // dd($this->start_time, $this->end_time);
+    // dd($this->start_time, $this->end_time , $this->onpayroll);
     $this->validate([
         'name' => 'required|string|max:255',
         'specialization' => 'required|string|max:255',
@@ -40,15 +42,18 @@ public function CreateDoc()
     $doc = Doctor::create([
         'name' => $this->name,
         'specialization' => $this->specialization,
-        'onpayroll' => $this->onpayroll,
+        'is_on_payroll' => $this->onpayroll,
         'days' => json_encode($this->days),
         'start_time' => $start,
         'end_time' => $end,
     ]);
 
     if ($doc) {
-        session()->flash('message', 'Doctor created successfully.');
-        $this->reset(['name', 'specialization', 'onpayroll', 'days', 'start_time', 'end_time']);
+        // session()->flash('message', 'Doctor created successfully.');
+        $this->showToast('success','Doctor created successfully.');
+
+        $this->reset(['name', 'specialization', 'days', 'start_time', 'end_time']);
+        $this->onpayroll = false; // Reset onpayroll to default
         Flux::modal('add-doctor')->close();
     } else {
         session()->flash('error', 'Failed to create doctor.');
@@ -61,6 +66,7 @@ public function CreateDoc()
     {
         // Logic to fetch doctors from the database
         $this->doctors = Doctor::all();
+        // dd($this->doctors);
     }
 
     public function deleteDoctor($id)
@@ -68,22 +74,34 @@ public function CreateDoc()
         $doctor = Doctor::find($id);
         if ($doctor) {
             $doctor->delete();
-            session()->flash('message', 'Doctor deleted successfully.');
+            // session()->flash('message', 'Doctor deleted successfully.');
+        $this->showToast('danger','Doctor deleted successfully.');
+
+            
             $this->getDoc();
         } else {
-            session()->flash('error', 'Doctor not found.');
+            // session()->flash('error', 'Doctor not found.');
+        $this->showToast('danger','Doctor not found.');
         }
     }
 
     public function DocEdit($id){
     $doctor = Doctor::find($id);
+    // dd($doctor);
+     // dd($this->start_time, $this->end_time , $this->onpayroll);
     if($doctor){
         $this->doctor_id = $doctor->id;
         $this->isModelCreating = 0; // editing mode
 
         $this->name = $doctor->name;
         $this->specialization = $doctor->specialization;
-        $this->onpayroll = $doctor->onpayroll;
+        if($doctor->onpayroll){
+            $onpayroll = true;
+
+        }else{
+            $onpayroll = false;
+        }
+        $this->onpayroll = $onpayroll;
         $this->days = json_decode($doctor->days, true);
         $this->start_time = Carbon::parse($doctor->start_time)->format('H:i');
         $this->end_time = Carbon::parse($doctor->end_time)->format('H:i');
@@ -96,7 +114,7 @@ public function CreateDoc()
 
     public function OpenAddDoc()
 {
-    $this->reset(['name', 'specialization', 'onpayroll', 'days', 'start_time', 'end_time']);
+    $this->reset(['name', 'specialization', 'days', 'start_time', 'end_time']);
 
     $this->onpayroll = false;
     $this->days = [];
@@ -105,6 +123,7 @@ public function CreateDoc()
 }
 public function UpdateDoc()
 {
+    // dd($this->start_time, $this->end_time , $this->onpayroll);
     $this->validate([
         'name' => 'required|string|max:255',
         'specialization' => 'required|string|max:255',
@@ -123,21 +142,25 @@ public function UpdateDoc()
         $doctor->update([
             'name' => $this->name,
             'specialization' => $this->specialization,
-            'onpayroll' => $this->onpayroll,
+            'is_on_payroll' => $this->onpayroll,
             'days' => json_encode($this->days),
             'start_time' => $start,
             'end_time' => $end,
         ]);
 
-        session()->flash('message', 'Doctor updated successfully.');
+        // session()->flash('message', 'Doctor updated successfully.');
+        $this->showToast('success','Doctor updated successfully.');
         Flux::modal('add-doctor')->close();
 
-        $this->reset(['name', 'specialization', 'onpayroll', 'days', 'start_time', 'end_time', 'doctor_id']);
+        $this->reset(['name', 'specialization', 'days', 'start_time', 'end_time', 'doctor_id']);
+        $this->onpayroll = false; // Reset onpayroll to default
+
         $this->isModelCreating = 1;
 
         $this->getDoc();
     } else {
-        session()->flash('error', 'Failed to update doctor.');
+        // session()->flash('error', 'Failed to update doctor.');
+        $this->showToast('danger','Failed to update doctor.');
     }
 }
 
@@ -191,15 +214,15 @@ public function UpdateDoc()
                                                 <flux:input wire:model="specialization" label="Edu / Specialization"
                                                     type="text" placeholder="M.B.B.S" />
                                             </div>
-                                            <div class=" ">
-                                                <flux:field variant="inline">
-                                                    <flux:label>On Payroll</flux:label>
-
-                                                    <flux:switch wire:model.live="onpayroll" />
-
+                                               
+                                                <div class=" ">
+                                                    <flux:field class="mx-2" variant="inline">
+                                                    <flux:label>On Pay Roll</flux:label>
+                                                    <flux:checkbox wire:model="onpayroll" />
                                                     <flux:error name="onpayroll" />
-                                                </flux:field>
-                                            </div>
+                                                    </flux:field>
+
+                                                </div>
                                             <div class="px-2">
                                                 <flux:checkbox.group wire:model="days" label="Days">
                                                     <flux:checkbox label="Monday" value="monday" />
@@ -224,7 +247,7 @@ public function UpdateDoc()
                                             <div class="flex">
                                                 <flux:spacer />
 
-                                                <flux:button wire:click="CreateDoc" variant="primary">Save changes</flux:button>
+                                                <flux:button wire:click="{{ $isModelCreating ? 'CreateDoc' : 'UpdateDoc'}}" variant="primary">Save changes</flux:button>
                                             </div>
                                         </div>
                                     </flux:modal>
@@ -325,13 +348,14 @@ public function UpdateDoc()
                                         <td class="size-px whitespace-nowrap">
                                             <div class="px-6 py-3">
                                                 <span
-                                                    class="py-1 px-1.5 inline-flex items-center gap-x-1 text-xs font-medium bg-teal-100 text-teal-800 rounded-full dark:bg-teal-500/10 dark:text-teal-500">
+                                                    class="py-1 px-1.5 inline-flex items-center gap-x-1 text-xs font-medium  {{ $doctor->is_on_payroll ? 'bg-amber-100 text-amber-800 rounded-full dark:bg-amber-500/10 dark:text-amber-500' : 'bg-teal-100 text-teal-800 rounded-full dark:bg-teal-500/10 dark:text-teal-500' }} ">
                                                     <svg class="size-2.5" xmlns="http://www.w3.org/2000/svg" width="16"
                                                         height="16" fill="currentColor" viewBox="0 0 16 16">
                                                         <path
                                                             d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z" />
                                                     </svg>
-                                                    {{ $doctor->onpayroll ? 'On Payroll' : 'Free Lance' }}
+                                                    {{ $doctor->is_on_payroll ? 'Hired' : 'Freelance' }}
+                                                    {{-- {{ $doctor->onpayroll ? 'Yes' : 'No' }} --}}
                                                 </span>
                                             </div>
                                         </td>
