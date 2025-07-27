@@ -11,13 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('lab_tests', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->string('days_required');
-            $table->boolean('fromOutsideLab');
-            $table->decimal('price', 10, 2);
-            $table->timestamps();
+        Schema::table('lab_tests', function (Blueprint $table) {
+             $table->decimal('cost_price', 10, 2)->nullable()->after('price');
         });
     }
 
@@ -26,6 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('lab_tests');
+        Schema::table('lab_tests', function (Blueprint $table) {
+            //
+        });
     }
 };

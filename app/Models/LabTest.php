@@ -9,9 +9,16 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class LabTest extends Model
 {
-     use HasFactory;
+    use HasFactory;
 
-    protected $fillable = ['name', 'price'];
+    // App\Models\LabTest.php
+
+    protected $casts = [
+        'fromOutsideLab' => 'boolean',
+    ];
+
+
+    protected $fillable = ['name', 'price', 'days_required', 'fromOutsideLab', 'cost_price'];
 
     public function doctorShares()
     {
