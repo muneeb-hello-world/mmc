@@ -23,6 +23,9 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('admin/doctorsmanagment', 'DoctorsManagementComponent')->name('admin.doctors');
     Volt::route('admin/servicesmanagment', 'ServicesManagementComponent')->name('admin.services');
     Volt::route('reception', 'Reception')->name('reception');
+    Volt::route('labentry', 'LabEntry')->name('labentry');
+    Volt::route('case', 'casesCrud')->name('case');
+    Volt::route('case/view/{id}', 'casesView')->name('caseview');
     Volt::route('admin/labtests', 'LabTestsManager')->name('admin.labtests');
     Volt::route('admin/labtestsshare', 'LabTestsShareManager')->name('admin.labtestsshare');
 

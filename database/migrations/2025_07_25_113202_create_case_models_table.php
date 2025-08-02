@@ -17,6 +17,7 @@ return new class extends Migration
             $table->foreignId('doctor_id')->constrained()->onDelete('cascade');
             $table->string('title');
             $table->decimal('final_price', 10, 2);
+            $table->decimal('balance', 10, 2);
             $table->string('room_type'); // e.g. Normal, AC, Private
             $table->enum('status', ['pending', 'completed', 'cancelled'])->default('pending');
             $table->date('scheduled_date')->nullable();

@@ -13,7 +13,6 @@ class DoctorLabShare extends Model
 
     protected $fillable = [
         'doctor_id',
-        'lab_test_id',
         'doctor_share_percent',
         'hospital_share_percent',
     ];
@@ -21,10 +20,5 @@ class DoctorLabShare extends Model
     public function doctor()
     {
         return $this->belongsTo(Doctor::class);
-    }
-
-    public function labTest()
-    {
-        return $this->belongsTo(LabTest::class);
     }
 }

@@ -14,7 +14,7 @@ class CaseModel extends Model
 
     protected $fillable = [
         'patient_id', 'doctor_id', 'title', 'final_price',
-        'room_type', 'status', 'scheduled_date', 'notes',
+        'room_type', 'status', 'scheduled_date', 'notes', 'balance'
     ];
 
     public function patient()

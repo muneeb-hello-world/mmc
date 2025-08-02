@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->boolean('is_doctor_related')->default(false);
+            $table->boolean('has_token')->default(false);
             $table->decimal('default_price', 10, 2);
             $table->timestamps();
         });

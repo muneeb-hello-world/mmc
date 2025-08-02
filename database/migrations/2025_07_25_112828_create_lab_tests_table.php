@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('days_required');
             $table->boolean('fromOutsideLab');
             $table->decimal('price', 10, 2);
+            $table->decimal('cost_price_percentage', 5, 2);
             $table->timestamps();
         });
     }

@@ -13,7 +13,7 @@ new class extends Component {
     public $fromOutsideLab = false;
     public $tests=[];
     public $test_id;
-    public $costPrice = '33%';
+    public $costPrice = 18;
 public $isModelCreating = 1;
 
 
@@ -39,7 +39,7 @@ public function CreateTest()
         'price' => $this->price,
         'days_required' => $this->days_required,
         'fromOutsideLab' => $this->fromOutsideLab,
-        'cost_price' => $this->costPrice ? $this->costPrice : null
+        'cost_price_percentage' => $this->costPrice ? $this->costPrice : null
     ]);
         
 
@@ -130,7 +130,7 @@ public function UpdateTest()
             'price' => $this->price,
             'days_required' => $this->days_required,
             'fromOutsideLab' => $this->fromOutsideLab,
-            'cost_price' => $this->costPrice ? $this->costPrice : null
+            'cost_price_percentage' => $this->costPrice ? $this->costPrice : null
         ]);
 
         // session()->flash('message', 'Doctor updated successfully.');
@@ -206,7 +206,7 @@ public function UpdateTest()
                                                     <flux:error name="fromOutsideLab" />
                                                 </flux:field>
 
-                                                <flux:input wire:model="costPrice" label="Cost Price" type="text" placeholder="100" />
+                                                <flux:input wire:model="costPrice" label="Cost Price Percentage" type="text" placeholder="100" />
 
                                                 </div>
 
@@ -322,7 +322,7 @@ public function UpdateTest()
                                           <td class="size-px whitespace-nowrap">
                                             <div class="px-6 py-3">
                                                 <span
-                                                    class="block text-sm font-semibold text-gray-800 dark:text-neutral-200">{{ $test->cost_price ? $test->cost_price : '33%' }} 
+                                                    class="block text-sm font-semibold text-gray-800 dark:text-neutral-200">{{ $test->cost_price_percentage }}% 
                                                 </span>
                                             </div>
 

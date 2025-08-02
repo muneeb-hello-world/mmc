@@ -7,12 +7,14 @@ use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\DoctorServiceShare;
 use App\Models\ServiceTransaction;
+use Carbon\Carbon;
 
 
 new class extends Component {
     public $patient = ['name' => '', 'contact' => '', 'age' => '', 'gender' => ''];
     public $services;
     public $docs = [];
+    public $paymentMethod = 'Cash'; // Default payment method
 
     public $selectedService;
     public $selectedServices = [];
@@ -38,8 +40,8 @@ new class extends Component {
 
             if ($service->is_doctor_related) {
                 $this->docs = $service->doctorShares;
-                
-                $this->selectedDoctor=$this->docs[0]->doctor->id;
+
+                $this->selectedDoctor = $this->docs[0]->doctor->id;
             } else {
                 $this->docs = [];
             }
@@ -53,6 +55,7 @@ new class extends Component {
     {
         $this->getPrice();
         if ($this->selectedDoctor) {
+            $this->getToken($this->selectedService , $this->selectedDoctor);
             $SelectedDoctorName = Doctor::find($this->selectedDoctor)->name;
             $SelectedServiceName = Service::find($this->selectedService)->name;
             $this->selectedServices[] = [
@@ -79,6 +82,15 @@ new class extends Component {
 
         }
     }
+
+    public function getToken($service_id , $doctor_id){
+      $transactions = ServiceTransaction::where('doctor_id', $doctor_id)
+    ->where('service_id', $service_id)
+    ->whereDate('created_at', Carbon::today()) // filter for today only
+    ->get();
+    
+    }
+
     public function getPrice()
     {
         if ($this->selectedService) {
@@ -88,7 +100,7 @@ new class extends Component {
                 $price = DoctorServiceShare::where('doctor_id', $this->selectedDoctor)
                     ->where('service_id', $this->selectedService)
                     ->first();
-                    // dd($this->selectedDoctor, $this->selectedService, $price);
+                // dd($this->selectedDoctor, $this->selectedService, $price);
                 $this->price = $price->price; // Get the price or default to 0
             } else {
                 $this->price = $service->default_price; // Default price if service not found
@@ -115,14 +127,16 @@ new class extends Component {
         $this->totalPrice = array_sum(array_column($this->selectedServices, 'price'));
     }
 
+
     public function createServiceTransaction()
     {
-        // Logic to create a new service transaction
+        // Validate input
         $this->validate([
             'patient.name' => 'required|string|max:255',
             'selectedServices' => 'required|array|min:1'
         ]);
 
+        // Step 1: Create Patient
         $patient = Patient::create([
             'name' => $this->patient['name'],
             'contact' => $this->patient['contact'] ?? null,
@@ -130,43 +144,58 @@ new class extends Component {
             'gender' => $this->patient['gender'] ?? null,
         ]);
 
-        if ($patient) {
-            foreach ($this->selectedServices as $service) {
-                $share = DoctorServiceShare::where('doctor_id', $service['doctor_id'])
-                    ->where('service_id', $service['service_id'])
-                    ->first();
-
-                // Default to 0% if not found
-                $doctorSharePercent = $share->doctor_share_percent ?? 0;
-                $hospitalSharePercent = $share->hospital_share_percent ?? 0;
-
-                $price = $service['price'];
-                $doctorShare = ($doctorSharePercent / 100) * $price;
-                $hospitalShare = ($hospitalSharePercent / 100) * $price;
-
-                ServiceTransaction::create([
-                    'patient_id' => $patient->id,
-                    'service_id' => $service['service_id'],
-                    'doctor_id' => $service['doctor_id'],
-                    'price' => $price,
-                    'doctor_share' => $doctorShare,
-                    'hospital_share' => $hospitalShare,
-                ]);
-
-            }
-            $this->showToast('success','Patient Created Successfully');
-            $this->print();
-
-        } 
-        else 
-        {
-            $this->showToast('Error', 'Failed to create patient.');
+        if (!$patient) {
+            $this->showToast('error', 'Failed to create patient.');
+            return;
         }
 
+        // Step 2: Create Service Transactions
+        $serviceTransactionIds = [];
+        foreach ($this->selectedServices as $service) {
+            $share = DoctorServiceShare::where('doctor_id', $service['doctor_id'])
+                ->where('service_id', $service['service_id'])
+                ->first();
+
+            $doctorSharePercent = $share->doctor_share_percent ?? 0;
+            $hospitalSharePercent = $share->hospital_share_percent ?? 0;
+
+            $price = $service['price'];
+            $doctorShare = ($doctorSharePercent / 100) * $price;
+            $hospitalShare = ($hospitalSharePercent / 100) * $price;
+
+            $transaction = ServiceTransaction::create([
+                'patient_id' => $patient->id,
+                'service_id' => $service['service_id'],
+                'doctor_id' => $service['doctor_id'],
+                'price' => $price,
+                'doctor_share' => $doctorShare,
+                'hospital_share' => $hospitalShare,
+            ]);
+
+            $serviceTransactionIds[] = $transaction->id;
+        }
+
+        // Step 3: Create Payment and link to each ServiceTransaction
+        $payment = \App\Models\Payment::create([
+            'patient_id' => $patient->id,
+            'amount' => $this->totalPrice,
+            'method' => $this->paymentMethod, // or wire this from user input
+            'remarks' => 'Service Payment',
+        ]);
+
+        foreach ($serviceTransactionIds as $id) {
+            \App\Models\PaymentService::create([
+                'payment_id' => $payment->id,
+                'service_transaction_id' => $id,
+                'amount' => ServiceTransaction::find($id)->price,
+            ]);
+        }
+
+        $this->showToast('success', 'Patient and Payment Created Successfully');
+        $this->print();
         $this->resetForm();
-
-
     }
+
 
     public function resetForm()
     {
@@ -196,8 +225,9 @@ new class extends Component {
         ]);
     }
 
-    public function print(){
-    
+    public function print()
+    {
+
     }
 
 }?>
@@ -223,9 +253,8 @@ new class extends Component {
 
         </div>
     </div>
-    <div class="p-4 m-4 border rounded-lg">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-lg font-semibold mb-4 ">Service Information</h2>
+    <div class="p-4 pt-0 m-4 border rounded-lg">
+        <div class="flex justify-between items-center">
             @if ($token)
                 <h2 class="text-lg font-semibold mr-4">Token : {{ $token }}</h2>
             @endif
@@ -312,8 +341,14 @@ new class extends Component {
             </div>
 
             <div class="flex justify-end">
-                <div class="">
+                <div class="flex items-center gap-4">
                     <span>Total : {{ $totalPrice }}</span>
+
+                    <flux:select label="Payment Method" placeholder="Select payment method" wire:model="paymentMethod"
+                        class="mb-4 w-48">
+                        <flux:select.option value="Cash">Cash</flux:select.option>
+                        <flux:select.option value="Online">Online</flux:select.option>
+                    </flux:select>
                     <flux:button wire:click='createServiceTransaction' class="mt-4 mr-6" variant="primary"
                         color="green">Print</flux:button>
                 </div>

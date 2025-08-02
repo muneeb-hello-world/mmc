@@ -18,7 +18,7 @@ class LabTest extends Model
     ];
 
 
-    protected $fillable = ['name', 'price', 'days_required', 'fromOutsideLab', 'cost_price'];
+    protected $fillable = ['name', 'price', 'days_required', 'fromOutsideLab', 'cost_price_percentage'];
 
     public function doctorShares()
     {
