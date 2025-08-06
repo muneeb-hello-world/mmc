@@ -17,6 +17,11 @@
                     <flux:navlist.item icon="bolt" :href="route('reception')" :current="request()->routeIs('reception')" wire:navigate>{{ __('Reception') }}</flux:navlist.item>
                     <flux:navlist.item icon="briefcase" :href="route('case')" :current="request()->routeIs('case')" wire:navigate>{{ __('Case') }}</flux:navlist.item>
                     <flux:navlist.item icon="clipboard-document-list" :href="route('labentry')" :current="request()->routeIs('labentry')" wire:navigate>{{ __('Lab Entry') }}</flux:navlist.item>
+                    <flux:navlist.item icon="user" :href="route('bookings')" :current="request()->routeIs('bookings')" wire:navigate>{{ __('Appointment Booking') }}</flux:navlist.item>
+                    <flux:navlist.item icon="banknotes" :href="route('payout')" :current="request()->routeIs('payout')" wire:navigate>{{ __('Doctor Payout') }}</flux:navlist.item>
+                    <flux:navlist.item icon="banknotes" :href="route('end')" :current="request()->routeIs('end')" wire:navigate>{{ __('End Of Shift') }}</flux:navlist.item>
+                    <flux:navlist.item icon="calculator" :href="route('expence')" :current="request()->routeIs('expence')" wire:navigate>{{ __('Expences') }}</flux:navlist.item>
+                    <flux:navlist.item icon="numbered-list" :href="route('showtrans')" :current="request()->routeIs('showtrans')" wire:navigate>{{ __('Expences') }}</flux:navlist.item>
                 </flux:navlist.group>
             </flux:navlist>
             <flux:navlist variant="outline">

@@ -55,7 +55,8 @@ new class extends Component {
     {
         $this->getPrice();
         if ($this->selectedDoctor) {
-            $this->getToken($this->selectedService , $this->selectedDoctor);
+            $token = $this->getToken($this->selectedService , $this->selectedDoctor);
+
             $SelectedDoctorName = Doctor::find($this->selectedDoctor)->name;
             $SelectedServiceName = Service::find($this->selectedService)->name;
             $this->selectedServices[] = [
@@ -63,7 +64,8 @@ new class extends Component {
                 'service_name' => $SelectedServiceName,
                 'doctor_id' => $this->selectedDoctor,
                 'doctor_name' => $SelectedDoctorName,
-                'price' => $this->price
+                'price' => $this->price,
+                'token' => $token
             ];
             $this->calculateTotalPrice();
 
@@ -84,10 +86,13 @@ new class extends Component {
     }
 
     public function getToken($service_id , $doctor_id){
-      $transactions = ServiceTransaction::where('doctor_id', $doctor_id)
+      $nextTokenNumber = ServiceTransaction::where('doctor_id', $doctor_id)
     ->where('service_id', $service_id)
-    ->whereDate('created_at', Carbon::today()) // filter for today only
-    ->get();
+    ->whereDate('created_at', Carbon::today())
+    ->max('token') + 1;
+    return $nextTokenNumber;
+
+// dd($nextTokenNumber);
     
     }
 
@@ -170,6 +175,9 @@ new class extends Component {
                 'price' => $price,
                 'doctor_share' => $doctorShare,
                 'hospital_share' => $hospitalShare,
+                'booking' => false,
+                'arrived'=>true,
+                'token'=>$service['token']
             ]);
 
             $serviceTransactionIds[] = $transaction->id;
@@ -291,14 +299,15 @@ new class extends Component {
 
 
         <div class="p-4 pt-2  m-4 rounded-lg border">
-            <div class="grid grid-cols-4 p-2">
+            <div class="grid grid-cols-5 p-2">
                 <div class=" text-gray-400 text-sm text-center border-b p-1">Name</div>
                 <div class=" text-gray-400 text-sm border-b p-1">Reffered By</div>
                 <div class=" text-gray-400 text-sm border-b p-1">Price</div>
+                <div class=" text-gray-400 text-sm border-b p-1">Token</div>
                 <div class=" text-gray-400 text-sm border-b p-1"> Action</div>
 
             </div>
-            <div class="grid grid-cols-4 p-2 ">
+            <div class="grid grid-cols-5 p-2 ">
                 @forelse ($selectedServices as $i => $s_service)
 
 
@@ -307,6 +316,7 @@ new class extends Component {
                         {{ $s_service['doctor_name'] ? $s_service['doctor_name'] : 'N/A' }}
                     </div>
                     <div class=" font-bold  border-b p-1">{{ $s_service['price'] }}</div>
+                    <div class=" font-bold  border-b p-1">{{ $s_service['token'] ?? '' }}</div>
                     <div class=" font-bold  border-b p-1">
                         {{-- <flux:button wire:click="editPrice({{ $i }})" size="sm" class=" mb-3 text-sm">Edit Price
                         </flux:button> --}}

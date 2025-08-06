@@ -3,6 +3,21 @@
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
+use Illuminate\Http\Request;
+
+Route::post('/attendance', function (Request $request) {
+    $data = $request->validate([
+        'user_id' => 'required|integer',
+        'fingerprint_hash' => 'required|string',
+        'scanned_at' => 'required|date',
+    ]);
+
+    \App\Models\Attendance::create($data);
+
+    return response()->json(['message' => 'Attendance recorded']);
+});
+
+
 Route::get('/', function () {
     return view('welcome');
 })->name('home');
@@ -25,8 +40,13 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('reception', 'Reception')->name('reception');
     Volt::route('labentry', 'LabEntry')->name('labentry');
     Volt::route('case', 'casesCrud')->name('case');
+    Volt::route('payout', 'doctorsPayout')->name('payout');
+    Volt::route('endofshift', 'endOfShift')->name('end');
+    Volt::route('expence', 'expence')->name('expence');
+    Volt::route('showtransactions', 'showTransactions')->name('showtrans');
     Volt::route('case/view/{id}', 'casesView')->name('caseview');
     Volt::route('admin/labtests', 'LabTestsManager')->name('admin.labtests');
+    Volt::route('bookings', 'bookings')->name('bookings');
     Volt::route('admin/labtestsshare', 'LabTestsShareManager')->name('admin.labtestsshare');
 
 });

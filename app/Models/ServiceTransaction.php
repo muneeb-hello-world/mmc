@@ -14,7 +14,7 @@ class ServiceTransaction extends Model
 
     protected $fillable = [
         'patient_id', 'service_id', 'doctor_id',
-        'price', 'doctor_share', 'hospital_share'
+        'price', 'doctor_share', 'hospital_share','booking' , 'arrived' , 'token'
     ];
 
     public function patient()

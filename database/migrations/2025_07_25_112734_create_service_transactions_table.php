@@ -19,6 +19,9 @@ return new class extends Migration
             $table->decimal('price', 10, 2);
             $table->decimal('doctor_share', 10, 2)->nullable();
             $table->decimal('hospital_share', 10, 2);
+            $table->integer('token')->nullable();
+            $table->boolean('booking');
+            $table->boolean('arrived');
             $table->timestamps();
         });
     }

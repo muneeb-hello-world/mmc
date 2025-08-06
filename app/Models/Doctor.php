@@ -12,16 +12,22 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Doctor extends Model
 {
-     use HasFactory;
+    use HasFactory;
 
     protected $fillable = [
-        'name', 'user_id', 'specialization',
-        'days', 'start_time', 'end_time', 'is_on_payroll'
+        'name',
+        'user_id',
+        'specialization',
+        'days',
+        'start_time',
+        'end_time',
+        'is_on_payroll',
+        'payout_frequency'
     ];
     protected $casts = [
 
         'is_on_payroll' => 'boolean'
-];
+    ];
 
     public function serviceShares()
     {
@@ -46,5 +52,10 @@ class Doctor extends Model
     public function cases()
     {
         return $this->hasMany(CaseModel::class);
+    }
+
+    public function payouts()
+    {
+        return $this->hasMany(DoctorPayout::class);
     }
 }
