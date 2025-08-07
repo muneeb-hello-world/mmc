@@ -14,7 +14,7 @@ class LabTestTransaction extends Model
 
     protected $fillable = [
         'patient_id', 'lab_test_id', 'doctor_id',
-        'amount', 'doctor_share', 'hospital_share',
+        'amount', 'doctor_share', 'hospital_share','is_returned'
     ];
 
     public function patient()

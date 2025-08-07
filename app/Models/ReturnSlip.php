@@ -11,6 +11,7 @@ class ReturnSlip extends Model
         'transaction_id',
         'reason',
         'refunded_by',
+        'amount'
     ];
 
     public function refundedBy()

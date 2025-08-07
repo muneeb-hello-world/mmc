@@ -7,6 +7,16 @@ use InvalidArgumentException;
 
 trait ShiftGeter
 {
+    public function getShiftLabel($key)
+{
+    return match ($key) {
+        'm' => '🌅 Morning (8 AM – 3 PM)',
+        'e' => '🌇 Evening (3 PM – 10 PM)',
+        'n' => '🌙 Night (10 PM – 8 AM)',
+        default => 'Unknown Shift',
+    };
+}
+
 
     function getShift($date, $shift)
     {

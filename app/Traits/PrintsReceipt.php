@@ -110,7 +110,7 @@ trait PrintsReceipt
         }
     }
 
-    public function printLabReceipt($patient, $tests, $totalOriginal, $discountPercent, $finalTotal)
+    public function printLabReceipt($patient, $tests, $totalOriginal, $discountPercent = 0, $finalTotal)
     {
         $defaultSize = 1;
         $printerName = 'COM3';
@@ -300,9 +300,9 @@ trait PrintsReceipt
             Log::error("Receipt print failed: " . $e->getMessage());
         }
     }
-    public function printCasePaymentReceipt($case, $payments )
-    {   
-        $printerName = 'COM3'; 
+    public function printCasePaymentReceipt($case, $payments)
+    {
+        $printerName = 'COM3';
         $defaultSize = 1;
         try {
             $connector = new WindowsPrintConnector($printerName);
@@ -364,7 +364,7 @@ trait PrintsReceipt
             if (count($payments)) {
                 $printer->text("\n  -------- Payment History --------\n");
                 foreach ($payments as $payment) {
-                    $payment=$payment->payment;
+                    $payment = $payment->payment;
                     $amount = number_format($payment->amount);
                     $method = ucfirst($payment->method);
                     $printer->text("    Rs. {$amount} via {$method}\n");
@@ -384,6 +384,74 @@ trait PrintsReceipt
             $printer->close();
         } catch (\Exception $e) {
             Log::error("Case Receipt print failed: " . $e->getMessage());
+        }
+    }
+
+    public function printShiftSummary(array $data)
+    {
+        try {
+            $connector = new WindowsPrintConnector("COM3"); // Adjust as needed
+            $printer = new Printer($connector);
+
+            // Header
+            $printer->setJustification(Printer::JUSTIFY_CENTER);
+            $printer->setEmphasis(true);
+            $printer->text("🏥 SHIFT SUMMARY\n");
+            $printer->setEmphasis(false);
+            $printer->feed(1);
+
+            $printer->text("📅 Date: {$data['date']}\n");
+            $printer->text("🕓 Shift: {$data['shift_label']}\n");
+            $printer->feed(1);
+
+            // Service Transactions
+            $printer->setJustification(Printer::JUSTIFY_LEFT);
+            $printer->text("--------------------------------\n");
+            $printer->setEmphasis(true);
+            $printer->text("💵 SERVICE TRANSACTIONS\n");
+            $printer->setEmphasis(false);
+            $printer->text("Cash:           Rs. " . number_format($data['services_cash'], 2) . "\n");
+            $printer->text("Online:         Rs. " . number_format($data['services_online'], 2) . "\n");
+            $printer->text("Total Services: Rs. " . number_format($data['services'], 2) . "\n\n");
+
+            // Lab Transactions
+            $printer->setEmphasis(true);
+            $printer->text("🧪 LAB TRANSACTIONS\n");
+            $printer->setEmphasis(false);
+            $printer->text("Cash:           Rs. " . number_format($data['labs_cash'], 2) . "\n");
+            $printer->text("Online:         Rs. " . number_format($data['labs_online'], 2) . "\n");
+            $printer->text("Total Labs:     Rs. " . number_format($data['labs'], 2) . "\n\n");
+
+            // Deductions
+            $printer->setEmphasis(true);
+            $printer->text("📉 DEDUCTIONS\n");
+            $printer->setEmphasis(false);
+            $printer->text("Doctor Payouts: -Rs. " . number_format($data['doctor_payouts'], 2) . "\n");
+            $printer->text("Expenses:       -Rs. " . number_format($data['expenses'], 2) . "\n");
+            $printer->text("Return Slips:   -Rs. " . number_format($data['returns'], 2) . "\n\n");
+
+            // Final Cash Summary
+            $printer->setJustification(Printer::JUSTIFY_CENTER);
+            $printer->setEmphasis(true);
+            $printer->text("💰 FINAL SUMMARY\n");
+            $printer->setEmphasis(false);
+            $printer->setJustification(Printer::JUSTIFY_LEFT);
+            $printer->text("Cash to Submit: Rs. " . number_format($data['final_cash'], 2) . "\n");
+            $printer->text("Cash Received:  Rs. " . number_format($data['cash_received'], 2) . "\n");
+            $printer->text("Amount Less:    Rs. " . number_format($data['amount_less'], 2) . "\n");
+
+            // Footer
+            $printer->setJustification(Printer::JUSTIFY_CENTER);
+            $printer->text("--------------------------------\n");
+            $printer->text("Printed at: " . now()->format('d/m/Y h:i A') . "\n");
+            $printer->text("Handled by: " . ($data['handler'] ?? 'User') . "\n");
+            $printer->feed(3);
+
+            $printer->cut();
+            $printer->close();
+        } catch (\Exception $e) {
+            // Optional: Log or handle printer errors
+            report($e);
         }
     }
 }

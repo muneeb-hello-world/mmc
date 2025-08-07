@@ -4,8 +4,10 @@ use App\Models\ServiceTransaction;
 use App\Models\LabTestTransaction;
 use App\Models\ReturnSlip;
 use Illuminate\Support\Facades\Auth;
+use App\Traits\ToastHelper;
 
 new class extends Component {
+    use ToastHelper;
     public string $transactionId = '';
     public string $type = 'service'; // or 'lab'
     public string $reason = '';
@@ -28,28 +30,40 @@ new class extends Component {
         }
 
         if (!$this->transaction) {
-            session()->flash('error', 'Transaction not found or already returned.');
+            $this->showToast('error', 'Transaction not found or already returned.');
         }
     }
 
     public function markAsReturned()
     {
         if (!$this->transaction) {
-            session()->flash('error', 'No transaction loaded.');
+            $this->showToast('error', 'No transaction loaded.');
             return;
         }
 
         $this->transaction->is_returned = true;
         $this->transaction->save();
+        $amount=0;
+
+        if ($this->transaction->service_id) {
+            $amount = $this->transaction->price;
+            // dd('service',$amount);
+        }
+        else{
+            // dd('lab',$this->transaction);
+            $amount = $this->transaction->amount;
+
+        }
 
         ReturnSlip::create([
             'type' => $this->type,
+            'amount'=>$amount,
             'transaction_id' => $this->transaction->id,
             'reason' => $this->reason,
             'refunded_by' => Auth::id(),
         ]);
 
-        session()->flash('success', 'Transaction marked as returned.');
+        $this->showToast('success', 'Transaction marked as returned.');
         $this->reset(['transactionId', 'reason', 'transaction']);
     }
 };

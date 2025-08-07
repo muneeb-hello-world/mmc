@@ -40,6 +40,9 @@ new class extends Component {
 
     public function UpdatedDiscount($value)
     {
+        if (count($this->selectedTests)) {
+            return;
+        }
         if ($value === null || $value === '') {
             // Reset prices to original when discount is cleared
             $this->selectedTests = $this->originalTests;
