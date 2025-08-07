@@ -300,8 +300,10 @@ trait PrintsReceipt
             Log::error("Receipt print failed: " . $e->getMessage());
         }
     }
-    public function printCasePaymentReceipt($case, $payments, $printerName = 'COM3', $defaultSize = 1)
-    {
+    public function printCasePaymentReceipt($case, $payments )
+    {   
+        $printerName = 'COM3'; 
+        $defaultSize = 1;
         try {
             $connector = new WindowsPrintConnector($printerName);
             $printer = new Printer($connector);
@@ -334,23 +336,23 @@ trait PrintsReceipt
             $contact = $case->patient->contact ?? '';
             $age = $case->patient->age ?? '';
             $gender = ucfirst($case->patient->gender ?? '');
-            $printer->text("  Contact: {$contact}   Age: {$age}   Gender: {$gender}\n\n");
+            $printer->text("  Contact: {$contact}   Age: {$age} \n  Gender: {$gender}\n\n");
 
             // --- CASE INFO ---
             $printer->setTextSize($defaultSize, $defaultSize);
             $printer->setEmphasis(true);
             $printer->text("  Doctor: " . $case->doctor->name . "\n");
-            $printer->text("  Operation: " . $case->operation . "\n");
-            $printer->text("  Date: " . Carbon::parse($case->operation_date)->format('d M Y') . "\n");
-            $printer->text("  Room: " . $case->room . "\n\n");
+            $printer->text("  Operation: " . $case->title . "\n");
+            $printer->text("  Date: " . Carbon::parse($case->scheduled_date)->format('d M Y') . "\n");
+            $printer->text("  Room: " . $case->room_type . "\n\n");
 
             // --- FINANCIAL SUMMARY ---
             $printer->setTextSize(1, 2);
             $printer->text("  -------- Financial Summary --------\n");
 
-            $final = number_format($case->final_package);
-            $paid = number_format($case->total_paid);
-            $balance = number_format($case->final_package - $case->total_paid);
+            $final = number_format($case->final_price);
+            $paid = number_format($case->final_price - $case->balance);
+            $balance = number_format($case->balance);
 
             $printer->setTextSize(1, 1);
             $printer->setEmphasis(false);
@@ -362,6 +364,7 @@ trait PrintsReceipt
             if (count($payments)) {
                 $printer->text("\n  -------- Payment History --------\n");
                 foreach ($payments as $payment) {
+                    $payment=$payment->payment;
                     $amount = number_format($payment->amount);
                     $method = ucfirst($payment->method);
                     $printer->text("    Rs. {$amount} via {$method}\n");

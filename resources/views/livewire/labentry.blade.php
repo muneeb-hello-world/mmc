@@ -289,7 +289,7 @@ new class extends Component {
 
 
             <flux:input label="Patient Name" placeholder="Enter patient name" wire:model="patient.name" class="mb-4" />
-            <flux:input label="Patient Contact" placeholder="Enter patient contact" wire:model="patient.contact"
+            <flux:input label="Patient Contact" type="number" placeholder="Enter patient contact" wire:model="patient.contact"
                 type="number" class="mb-4" />
             <flux:input label="Patient Age" placeholder="Enter patient age" wire:model="patient.age" class="mb-4"
                 type="number" />

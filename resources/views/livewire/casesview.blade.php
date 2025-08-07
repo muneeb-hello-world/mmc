@@ -101,14 +101,14 @@ new class extends Component {
 
         $this->validate();
 
-        $payment = \App\Models\Payment::create([
+        $payment = Payment::create([
             'patient_id' => $this->case->patient->id,
             'amount' => $this->paymentAmount,
             'method' => $this->paymentMethod,
             'remarks' => 'Advance payment for case',
         ]);
 
-        $p = \App\Models\PaymentCase::create([
+        $p = PaymentCase::create([
             'payment_id' => $payment->id,
             'case_model_id' => $this->case->id,
             'amount' => $this->paymentAmount,
