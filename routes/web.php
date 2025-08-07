@@ -48,6 +48,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('admin/labtests', 'LabTestsManager')->name('admin.labtests');
     Volt::route('bookings', 'bookings')->name('bookings');
     Volt::route('admin/labtestsshare', 'LabTestsShareManager')->name('admin.labtestsshare');
+    Volt::route('tinker', 'freeTinker')->name('tinker');
 
 });
 

@@ -9,10 +9,17 @@ use App\Models\DoctorServiceShare;
 use App\Models\ServiceTransaction;
 use Carbon\Carbon;
 use Flux\Flux;
-
+use Illuminate\Support\Facades\DB;
+use App\Traits\PrintsReceipt;
+use App\Traits\ToastHelper;
 
 
 new class extends Component {
+
+    use PrintsReceipt;
+    use ToastHelper;
+
+
     public $patient = ['name' => '', 'contact' => '', 'age' => '', 'gender' => ''];
     public $services;
     public $docs = [];
@@ -37,13 +44,15 @@ new class extends Component {
 
     public function updatedSelectedService($value)
     {
+        $this->selectedDoctor = '';
         if ($value) {
             $service = Service::with('doctorShares')->find($value);
 
             if ($service->is_doctor_related) {
                 $this->docs = $service->doctorShares;
 
-                $this->selectedDoctor = $this->docs[0]->doctor->id;
+                $this->selectedDoctor = $this->docs[0]->doctor->id ?? null;
+
             } else {
                 $this->docs = [];
             }
@@ -56,46 +65,56 @@ new class extends Component {
     public function addService()
     {
         $this->getPrice();
-        if ($this->selectedDoctor) {
-            $token = $this->getToken($this->selectedService , $this->selectedDoctor);
 
+        // Prevent duplication
+        foreach ($this->selectedServices as $s) {
+            if (
+                $s['service_id'] == $this->selectedService &&
+                ($s['doctor_id'] == ($this->selectedDoctor ?? null))
+            ) {
+                $this->showToast('warning', 'This service has already been added.');
+                return;
+            }
+        }
+
+        $SelectedServiceName = Service::find($this->selectedService)->name;
+
+        if ($this->selectedDoctor) {
+            $token = $this->getToken($this->selectedService, $this->selectedDoctor);
             $SelectedDoctorName = Doctor::find($this->selectedDoctor)->name;
-            $SelectedServiceName = Service::find($this->selectedService)->name;
+
             $this->selectedServices[] = [
                 'service_id' => $this->selectedService,
                 'service_name' => $SelectedServiceName,
                 'doctor_id' => $this->selectedDoctor,
                 'doctor_name' => $SelectedDoctorName,
                 'price' => $this->price,
-                'token' => $token
+                'token' => $token,
             ];
-            $this->calculateTotalPrice();
-
         } else {
-            $SelectedServiceName = Service::find($this->selectedService)->name;
-
             $this->selectedServices[] = [
                 'service_id' => $this->selectedService,
                 'service_name' => $SelectedServiceName,
                 'doctor_id' => null,
                 'doctor_name' => null,
-                'price' => $this->price
+                'price' => $this->price,
             ];
-            $this->calculateTotalPrice();
-
-
         }
+
+        $this->calculateTotalPrice();
     }
 
-    public function getToken($service_id , $doctor_id){
-      $nextTokenNumber = ServiceTransaction::where('doctor_id', $doctor_id)
-    ->where('service_id', $service_id)
-    ->whereDate('created_at', Carbon::today())
-    ->max('token') + 1;
-    return $nextTokenNumber;
 
-// dd($nextTokenNumber);
-    
+    public function getToken($service_id, $doctor_id)
+    {
+        $maxToken = ServiceTransaction::where('doctor_id', $doctor_id)
+            ->where('service_id', $service_id)
+            ->whereDate('created_at', Carbon::today())
+            ->max('token') + 1;
+        return ($maxToken ?? 0) + 1;
+
+        // dd($nextTokenNumber);
+
     }
 
     public function getPrice()
@@ -108,7 +127,7 @@ new class extends Component {
                     ->where('service_id', $this->selectedService)
                     ->first();
                 // dd($this->selectedDoctor, $this->selectedService, $price);
-                $this->price = $price->price; // Get the price or default to 0
+                $this->price = $price->price ?? 0; // Get the price or default to 0
             } else {
                 $this->price = $service->default_price; // Default price if service not found
             }
@@ -135,15 +154,124 @@ new class extends Component {
     }
 
 
+
+    // public function createServiceTransaction()
+    // {
+    //     $this->validate([
+    //         'patient.name' => 'required|string|max:255',
+    //         'selectedServices' => 'required|array|min:1'
+    //     ]);
+
+    //     DB::beginTransaction();
+
+    //     try {
+    //         // Step 1: Create Patient
+    //         $patient = Patient::create([
+    //             'name' => $this->patient['name'],
+    //             'contact' => $this->patient['contact'] ?? null,
+    //             'age' => is_numeric($this->patient['age']) ? (int) $this->patient['age'] : null,
+    //             'gender' => $this->patient['gender'] ?? null,
+    //         ]);
+
+    //         if (!$patient) {
+    //             throw new \Exception('Failed to create patient.');
+    //         }
+
+    //         // Step 2: Create Service Transactions
+    //         $serviceTransactions = [];
+
+    //         foreach ($this->selectedServices as $service) {
+    //             $share = DoctorServiceShare::where('doctor_id', $service['doctor_id'])
+    //                 ->where('service_id', $service['service_id'])
+    //                 ->first();
+
+    //             $doctorSharePercent = $share->doctor_share_percent ?? 0;
+    //             $hospitalSharePercent = $share->hospital_share_percent ?? 0;
+
+    //             $price = $service['price'];
+    //             $doctorShare = ($doctorSharePercent / 100) * $price;
+    //             $hospitalShare = ($hospitalSharePercent / 100) * $price;
+
+    //             $transaction = ServiceTransaction::create([
+    //                 'patient_id' => $patient->id,
+    //                 'service_id' => $service['service_id'],
+    //                 'doctor_id' => $service['doctor_id'],
+    //                 'price' => $price,
+    //                 'doctor_share' => $doctorShare,
+    //                 'hospital_share' => $hospitalShare,
+    //                 'booking' => false,
+    //                 'arrived' => true,
+    //                 'token' => $service['token'] ?? null
+    //             ]);
+
+    //             $serviceTransactions[] = $transaction;
+    //         }
+
+    //         // Step 3: Create Payment
+    //         $payment = \App\Models\Payment::create([
+    //             'patient_id' => $patient->id,
+    //             'amount' => $this->totalPrice,
+    //             'method' => $this->paymentMethod,
+    //             'remarks' => 'Service Payment',
+    //         ]);
+
+    //         foreach ($serviceTransactions as $transaction) {
+    //             \App\Models\PaymentService::create([
+    //                 'payment_id' => $payment->id,
+    //                 'service_transaction_id' => $transaction->id,
+    //                 'amount' => $transaction->price,
+    //             ]);
+    //         }
+
+    //         DB::commit();
+
+    //         $this->showToast('success', 'Patient and Payment Created Successfully');
+    //         $this->print();
+    //         $this->resetForm();
+
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
+
+    //         // Optional: Log error for debugging
+    //         // \Log::error("Transaction Error: " . $e->getMessage());
+
+    //         $this->showToast('error', 'Transaction Failed: ' . $e->getMessage());
+    //         return;
+    //     }
+    // }
+
+
+
     public function createServiceTransaction()
     {
-        // Validate input
         $this->validate([
             'patient.name' => 'required|string|max:255',
             'selectedServices' => 'required|array|min:1'
         ]);
 
-        // Step 1: Create Patient
+        DB::beginTransaction();
+
+        try {
+            $patient = $this->createPatient();
+            $transactions = $this->createServiceTransactions($patient);
+            $this->createPayment($patient, $transactions);
+
+            DB::commit();
+            $this->showToast('success', 'Patient and Payment Created Successfully');
+            // $this->print();
+            $this->print($patient, $transactions);
+
+            $this->resetForm();
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->showToast('error', 'Transaction Failed: ' . $e->getMessage());
+            return;
+        }
+    }
+
+    private function createPatient()
+    {
         $patient = Patient::create([
             'name' => $this->patient['name'],
             'contact' => $this->patient['contact'] ?? null,
@@ -152,12 +280,16 @@ new class extends Component {
         ]);
 
         if (!$patient) {
-            $this->showToast('error', 'Failed to create patient.');
-            return;
+            throw new \Exception('Failed to create patient');
         }
 
-        // Step 2: Create Service Transactions
-        $serviceTransactionIds = [];
+        return $patient;
+    }
+
+    private function createServiceTransactions($patient)
+    {
+        $transactions = [];
+
         foreach ($this->selectedServices as $service) {
             $share = DoctorServiceShare::where('doctor_id', $service['doctor_id'])
                 ->where('service_id', $service['service_id'])
@@ -178,32 +310,32 @@ new class extends Component {
                 'doctor_share' => $doctorShare,
                 'hospital_share' => $hospitalShare,
                 'booking' => false,
-                'arrived'=>true,
-                'token'=>$service['token']
+                'arrived' => true,
+                'token' => $service['token'] ?? null
             ]);
 
-            $serviceTransactionIds[] = $transaction->id;
+            $transactions[] = $transaction;
         }
 
-        // Step 3: Create Payment and link to each ServiceTransaction
+        return $transactions;
+    }
+
+    private function createPayment($patient, $transactions)
+    {
         $payment = \App\Models\Payment::create([
             'patient_id' => $patient->id,
             'amount' => $this->totalPrice,
-            'method' => $this->paymentMethod, // or wire this from user input
+            'method' => $this->paymentMethod,
             'remarks' => 'Service Payment',
         ]);
 
-        foreach ($serviceTransactionIds as $id) {
+        foreach ($transactions as $transaction) {
             \App\Models\PaymentService::create([
                 'payment_id' => $payment->id,
-                'service_transaction_id' => $id,
-                'amount' => ServiceTransaction::find($id)->price,
+                'service_transaction_id' => $transaction->id,
+                'amount' => $transaction->price,
             ]);
         }
-
-        $this->showToast('success', 'Patient and Payment Created Successfully');
-        $this->print();
-        $this->resetForm();
     }
 
 
@@ -216,13 +348,13 @@ new class extends Component {
             'gender' => '',
         ];
         $this->selectedServices = [];
-        $this->selectedService = null;
         $this->totalPrice = 0;
         $this->token = null;
         $this->docs = [];
         $this->selectedDoctor = null;
         $this->price = null;
         $this->changedPrice = null;
+        $this->selectedService = $this->services[0]->id;
 
 
     }
@@ -235,10 +367,31 @@ new class extends Component {
         ]);
     }
 
-    public function print()
-    {
 
+    private function print($patient, $transactions)
+    {
+        try {
+            // Extract services for receipt
+            $services = collect($transactions)->map(function ($tx) {
+                return [
+                    'name' => $tx->service->name,
+                    'charged_price' => $tx->price,
+                ];
+            });
+
+            // Get token from the consultation service (if any)
+            $token = collect($transactions)
+                ->first(fn($tx) => !is_null($tx->token))
+                    ?->token;
+
+            $this->printReceipt($patient, $services, $token, 0);
+
+        } catch (\Exception $e) {
+            logger()->error('Receipt print failed: ' . $e->getMessage());
+        }
     }
+
+
 
 }?>
 

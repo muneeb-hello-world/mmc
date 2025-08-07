@@ -3,15 +3,21 @@
 use Livewire\Volt\Component;
 use App\Models\LabTest;
 use App\Models\Patient;
+use App\Models\Payment;
+use App\Models\PaymentLab;
 use App\Models\DoctorLabShare;
 use App\Models\LabTestTransaction;
+use App\Traits\PrintsReceipt;
+
 
 
 new class extends Component {
+    use PrintsReceipt;
+
     public $patient = ['name' => '', 'contact' => '', 'age' => '', 'gender' => ''];
     public $labTests;
     public $originalTests = [];
-    public $paymentMethod;
+    public $paymentMethod = "Cash";
 
     public $docs = [];
     public $discount = null;
@@ -66,22 +72,35 @@ new class extends Component {
     }
 
 
-
-
     public function addTest()
     {
         $SelectedTest = LabTest::find($this->selectedTest);
-        $cost = ($SelectedTest->price * $SelectedTest->cost_price_percentage / 100);
+
+        // Prevent duplicate test
+        $alreadyAdded = collect($this->selectedTests)
+            ->pluck('test_id')
+            ->contains($SelectedTest->id);
+
+        if ($alreadyAdded) {
+            $this->showToast('danger', 'This test is already added.');
+            return;
+        }
+
+        $cost = $SelectedTest->price * $SelectedTest->cost_price_percentage / 100;
         $profit = ($SelectedTest->price - $cost);
-        // dd($cost );
+
         $this->selectedTests[] = [
             'test_id' => $SelectedTest->id,
             'cost_price' => $cost,
             'profit' => $profit,
             'days' => $SelectedTest->days_required,
             'test_name' => $SelectedTest->name,
-            'price' => $SelectedTest->price
+            'original_price' => $SelectedTest->price,
+            'price' => $SelectedTest->price, // will change on discount
         ];
+
+
+
         $this->originalTests = $this->selectedTests;
         $this->calculateTotalPrice();
     }
@@ -105,90 +124,132 @@ new class extends Component {
         $this->totalPrice = array_sum(array_column($this->selectedTests, 'price'));
     }
 
+    // STart
     public function createLabTestTransaction()
     {
-        // Logic to create a new lab test transaction
         $this->validate([
             'patient.name' => 'required|string|max:255',
             'patient.contact' => 'required|string|max:255',
             'patient.age' => 'required|string|max:255',
-            'selectedTests' => 'required|array|min:1'
+            'selectedTests' => 'required|array|min:1',
+            'paymentMethod' => 'required|string|in:Cash,Online',
         ]);
-        if ($this->selectedDoctor === '') {
-            $this->selectedDoctor = null;
+
+        DB::beginTransaction();
+
+        try {
+            $patient = $this->createPatient();
+            $transactions = $this->createLabTransactions($patient);
+            $this->createLabPayment($patient, $transactions);
+            DB::commit();
+
+            $this->showToast('success', 'Test Added Successfully');
+            $this->print($patient, $transactions);
+            $this->resetForm();
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->showToast('error', 'Transaction Failed: ' . $e->getMessage());
         }
+    }
 
-
+    private function createPatient()
+    {
         $patient = Patient::create([
             'name' => $this->patient['name'],
             'contact' => $this->patient['contact'] ?? null,
             'age' => is_numeric($this->patient['age']) ? (int) $this->patient['age'] : null,
             'gender' => $this->patient['gender'] ?? null,
         ]);
-        // dd($this->selectedDoctor);
-        if ($patient) {
-            $labTransactionIds = [];
 
-            foreach ($this->selectedTests as $test) {
-                $labTest = LabTest::find($test['test_id']);
-                $price = $test['price'];
-                $costPrice = $labTest->cost_price_percentage ?? 0;
-                $profit = $price - $costPrice;
-
-                $doctorShare = 0;
-                $hospitalShare = 0;
-
-                if ($this->selectedDoctor) {
-                    $share = $this->docs->where('doctor_id', $this->selectedDoctor)->first();
-                    $doctorSharePercent = $share->doctor_share_percent ?? 0;
-                    $hospitalSharePercent = $share->hospital_share_percent ?? 0;
-
-                    $doctorShare = ($doctorSharePercent / 100) * $profit;
-                    $hospitalShare = ($hospitalSharePercent / 100) * $profit;
-                } else {
-                    $hospitalShare = $profit;
-                }
-
-                $record = LabTestTransaction::create([
-                    'patient_id' => $patient->id,
-                    'lab_test_id' => $test['test_id'],
-                    'doctor_id' => $this->selectedDoctor,
-                    'amount' => $price,
-                    'doctor_share' => $doctorShare,
-                    'hospital_share' => $hospitalShare,
-                ]);
-
-                $labTransactionIds[] = $record->id;
-            }
-
-            // 💳 Create payment and attach to transactions
-            $payment = \App\Models\Payment::create([
-                'patient_id' => $patient->id,
-                'amount' => $this->totalPrice,
-                'method' => $this->paymentMethod, // or dynamically set later
-                'remarks' => 'Lab test payment',
-            ]);
-
-            foreach ($labTransactionIds as $txnId) {
-                \App\Models\PaymentLab::create([
-                    'payment_id' => $payment->id,
-                    'lab_test_transaction_id' => $txnId,
-                    'amount' => \App\Models\LabTestTransaction::find($txnId)->amount,
-                ]);
-            }
-
-            $this->showToast('success', 'Test added Successfully');
-            // Optionally, you can call a print function here
-            // $this->print();
-        } else {
-            $this->showToast('Error', 'Failed to create patient.');
+        if (!$patient) {
+            throw new \Exception('Failed to create patient');
         }
 
-        $this->resetForm();
-
-
+        return $patient;
     }
 
+    private function createLabTransactions($patient)
+    {
+        $transactions = [];
+
+        foreach ($this->selectedTests as $test) {
+            $labTest = LabTest::find($test['test_id']);
+            $price = $test['price'];
+            $costPrice = ($labTest->price * $labTest->cost_price_percentage / 100);
+            $profit = $price - $costPrice;
+
+            $doctorShare = 0;
+            $hospitalShare = $profit;
+
+            if ($this->selectedDoctor) {
+                $share = $this->docs->where('doctor_id', $this->selectedDoctor)->first();
+                $doctorSharePercent = $share->doctor_share_percent ?? 0;
+                $hospitalSharePercent = $share->hospital_share_percent ?? 0;
+
+                $doctorShare = ($doctorSharePercent / 100) * $profit;
+                $hospitalShare = ($hospitalSharePercent / 100) * $profit;
+            }
+
+            $transaction = LabTestTransaction::create([
+                'patient_id' => $patient->id,
+                'lab_test_id' => $test['test_id'],
+                'doctor_id' => $this->selectedDoctor,
+                'amount' => $price,
+                'doctor_share' => $doctorShare,
+                'hospital_share' => $hospitalShare,
+            ]);
+
+            $transactions[] = $transaction;
+        }
+
+        return $transactions;
+    }
+
+    private function createLabPayment($patient, $transactions)
+    {
+        $payment = Payment::create([
+            'patient_id' => $patient->id,
+            'amount' => $this->totalPrice,
+            'method' => $this->paymentMethod,
+            'remarks' => 'Lab test payment',
+        ]);
+
+        foreach ($transactions as $txn) {
+            PaymentLab::create([
+                'payment_id' => $payment->id,
+                'lab_test_transaction_id' => $txn->id,
+                'amount' => $txn->amount,
+            ]);
+        }
+    }
+
+    private function print($patient, $transactions)
+    {
+        try {
+            $tests = collect($this->selectedTests)->map(function ($test) {
+                return [
+                    'name' => $test['test_name'],
+                    'original_price' => $test['original_price'],
+                    'discounted_price' => $test['price'],
+                ];
+            });
+
+            $totalOriginal = collect($this->selectedTests)->sum('original_price');
+            $discountPercent = $this->discount;
+            $finalTotal = $this->totalPrice;
+
+            $this->printLabReceipt($patient, $tests, $totalOriginal, $discountPercent, $finalTotal);
+
+
+
+        } catch (\Exception $e) {
+            logger()->error('Receipt print failed: ' . $e->getMessage());
+        }
+    }
+
+
+    // End
     public function resetForm()
     {
         $this->patient = [
@@ -198,9 +259,10 @@ new class extends Component {
             'gender' => '',
         ];
         $this->selectedTests = [];
-        $this->selectedTest = null;
+        $this->selectedTest = $this->labTests->first()->id ?? null; // Set default selected test
         $this->totalPrice = 0;
         $this->price = null;
+        $this->paymentMethod = "Cash";
         $this->mount();
 
     }
@@ -213,10 +275,7 @@ new class extends Component {
         ]);
     }
 
-    public function print()
-    {
 
-    }
 
 }?>
 
@@ -244,7 +303,9 @@ new class extends Component {
                 <flux:select label="Reffered By" placeholder="Select Doctor" wire:model="selectedDoctor" class="w-full">
                     <flux:select.option value="" selected>None</flux:select.option>
                     @foreach ($docs as $doc)
-                        <flux:select.option value="{{ $doc->doctor->id }}">{{ $doc->doctor->name }}</flux:select.option>
+                        @if ($doc->doctor)
+                            <flux:select.option value="{{ $doc->doctor->id }}">{{ $doc->doctor->name }}</flux:select.option>
+                        @endif
                     @endforeach
                 </flux:select>
             @endif
@@ -297,8 +358,8 @@ new class extends Component {
 
 
                     <div class=" font-bold  border-b p-1">
-                        <flux:button wire:click="deleteTest({{ $i }})" size="sm" class=" mb-3" variant="danger"
-                            class="  text-sm">Remove</flux:button>
+                        <flux:button wire:click="deleteTest({{ $i }})" size="sm" class="text-sm mb-3" variant="danger">
+                            Remove</flux:button>
                     </div>
                 @empty
 
