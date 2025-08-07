@@ -7,6 +7,8 @@ use App\Models\ServiceTransaction;
 use App\Models\Doctor;
 use App\Models\DoctorServiceShare;
 use App\Models\PaymentService;
+use App\Models\Payment;
+use App\Models\Patient;
 
 
 new class extends Component {
@@ -148,7 +150,7 @@ new class extends Component {
 
         $this->getPrice(); // Sets price and shares
 
-        $patient = \App\Models\Patient::create([
+        $patient = Patient::create([
             'name' => $this->patient['name'],
             'contact' => $this->patient['contact']
         ]);
@@ -186,7 +188,7 @@ new class extends Component {
             $this->hospitalShare = round($this->hospitalShare * 1.5);
         }
 
-        $patient = \App\Models\Patient::create([
+        $patient = Patient::create([
             'name' => $this->patient['name'],
             'contact' => $this->patient['contact']
         ]);
@@ -224,7 +226,7 @@ new class extends Component {
         $price = $service->price;
 
         // Create Payment
-        $payment = \App\Models\Payment::create([
+        $payment = Payment::create([
             'patient_id' => $service->patient_id,
             'amount' => $price,
             'method' => $this->paymentMethod,
@@ -237,8 +239,33 @@ new class extends Component {
             'amount' => $price,
         ]);
 
+        $this->print($service->patient, [$service]);
+
+
         // $this->print($service->id);
         $this->getAppointments();
+    }
+     private function print($patient, $transactions)
+    {
+        try {
+            // Extract services for receipt
+            $services = collect($transactions)->map(function ($tx) {
+                return [
+                    'name' => $tx->service->name,
+                    'charged_price' => $tx->price,
+                ];
+            });
+
+            // Get token from the consultation service (if any)
+            $token = collect($transactions)
+                ->first(fn($tx) => !is_null($tx->token))
+                    ?->token;
+
+            $this->printReceipt($patient, $services, $token, 0);
+
+        } catch (\Exception $e) {
+            logger()->error('Receipt print failed: ' . $e->getMessage());
+        }
     }
 
 
@@ -308,58 +335,59 @@ new class extends Component {
 
 
 
-                <div class="grid grid-cols-5 grid-rows-1 gap-4 p-4 border border-gray-200 dark:border-neutral-700">
-    @foreach ($bookings as $booking)
-        <div class="">
-            <div wire:click="openModel({{ $booking['token'] }})" class="seat-item 
-                    @if ($booking['arrived']) seat-arrived
-                    @elseif ($booking['status'] === 'booked') seat-booked
-                    @elseif ($booking['status'] === 'reserved') seat-reserved
-                    @else seat-available
-                    @endif
-                    cursor-pointer rounded-xl p-3 min-h-[120px] flex flex-col justify-between">
-                
-                <!-- Header with Token and Chair Icon -->
-                <div class="flex items-center justify-between mb-2">
-                    <div class="text-white font-bold text-lg leading-tight">
-                        {{ $booking['token'] }}
-                    </div>
-                    @if ($booking['status'] != 'booked')
-                        <i class="fas fa-chair text-white/70 text-lg"></i>
-                    @endif
-                </div>
+                    <div class="grid grid-cols-5 grid-rows-1 gap-4 p-4 border border-gray-200 dark:border-neutral-700">
+                        @foreach ($bookings as $booking)
+                                <div class="">
+                                    <div wire:click="openModel({{ $booking['token'] }})" class="seat-item 
+                            @if ($booking['arrived']) seat-arrived
+                            @elseif ($booking['status'] === 'booked') seat-booked
+                            @elseif ($booking['status'] === 'reserved') seat-reserved
+                            @else seat-available
+                            @endif
+                            cursor-pointer rounded-xl p-3 min-h-[120px] flex flex-col justify-between">
 
-                <!-- Time - Secondary Info -->
-                <div class="text-white/80 text-xs font-medium mb-2">
-                    {{ $booking['expected_time'] }}
-                </div>
+                                        <!-- Header with Token and Chair Icon -->
+                                        <div class="flex items-center justify-between mb-2">
+                                            <div class="text-white font-bold text-lg leading-tight">
+                                                {{ $booking['token'] }}
+                                            </div>
+                                            @if ($booking['status'] != 'booked')
+                                                <i class="fas fa-chair text-white/70 text-lg"></i>
+                                            @endif
+                                        </div>
 
-                @if ($booking['status'] === 'booked')
-                    <!-- Patient Info - Main Content -->
-                    <div class="flex-1 space-y-1">
-                        <div class="text-white font-semibold text-sm leading-tight">
-                            {{ $booking['patient']?->name ?? 'N/A' }}
-                        </div>
-                        
-                        <!-- Price -->
-                        <div class="text-white/90 text-xs font-medium">
-                            Rs {{ number_format($booking['price']) }}
-                        </div>
-                    </div>
+                                        <!-- Time - Secondary Info -->
+                                        <div class="text-white/80 text-xs font-medium mb-2">
+                                            {{ $booking['expected_time'] }}
+                                        </div>
 
-                    <!-- Status Badge -->
-                    @if ($booking['arrived'])
-                        <div class="mt-2 pt-2 border-t border-white/20">
-                            <div class="inline-block bg-green-500/20 text-green-300 text-xs font-semibold px-2 py-1 rounded-full">
-                                ✓ Arrived
-                            </div>
-                        </div>
-                    @endif
-                @endif
-            </div>
-        </div>
-    @endforeach
-</div>s
+                                        @if ($booking['status'] === 'booked')
+                                            <!-- Patient Info - Main Content -->
+                                            <div class="flex-1 space-y-1">
+                                                <div class="text-white font-semibold text-sm leading-tight">
+                                                    {{ $booking['patient']?->name ?? 'N/A' }}
+                                                </div>
+
+                                                <!-- Price -->
+                                                <div class="text-white/90 text-xs font-medium">
+                                                    Rs {{ number_format($booking['price']) }}
+                                                </div>
+                                            </div>
+
+                                            <!-- Status Badge -->
+                                            @if ($booking['arrived'])
+                                                <div class="mt-2 pt-2 border-t border-white/20">
+                                                    <div
+                                                        class="inline-block bg-green-500/20 text-green-300 text-xs font-semibold px-2 py-1 rounded-full">
+                                                        ✓ Arrived
+                                                    </div>
+                                                </div>
+                                            @endif
+                                        @endif
+                                    </div>
+                                </div>
+                        @endforeach
+                    </div>s
 
                 </div>
             </div>
@@ -376,18 +404,18 @@ new class extends Component {
             </div>
 
 
-            <div class="flex justify-center items-center">
+            <div class="flex justify-center gap-x-1 items-center">
                 @php
                     $index = $selectedToken - 1;
                     $arrived = $bookings[$index]['arrived'] ?? false;
                 @endphp
 
                 @if (!$arrived)
-                 <flux:select wire:model.live="emergencyPrice">
-                <flux:select.option value="1">Emergency Price</flux:select.option>
-                <flux:select.option value="0">Normal Price</flux:select.option>
-            </flux:select>
-                    <flux:button variant="primary" wire:click="arrive({{ $selectedToken }})">Arrived ?</flux:button>
+                    <flux:select wire:model.live="paymentMethod">
+                        <flux:select.option value="Cash">Cash</flux:select.option>
+                        <flux:select.option value="Online">Online</flux:select.option>
+                    </flux:select>
+                    <flux:button variant="primary" wire:click="arrive({{ $selectedToken }})">Arrived</flux:button>
                 @else
                     <span class="text-green-500 text-lg font-semibold">Patient Arrived</span>
                 @endif
@@ -407,7 +435,7 @@ new class extends Component {
 
             <flux:input wire:model="patient.contact" label="Contact #" type="number" />
 
-            
+
 
             <div class="flex">
                 <flux:spacer />
@@ -434,7 +462,7 @@ new class extends Component {
                 <flux:select.option value="0">Normal Price</flux:select.option>
             </flux:select>
 
-             
+
 
             <div class="flex">
                 <flux:spacer />
