@@ -2,30 +2,54 @@
 use Livewire\Volt\Component;
 use App\Models\Expense;
 use Carbon\Carbon;
+use App\Traits\ShiftGeter;
 
 new class extends Component {
+    use ShiftGeter;
 
     public $selectedDate;
+    public $selectedShift;
+    public $total;
+    public $expenses = [];
     public $amount, $given_by, $given_to, $purpose;
 
     public function mount()
     {
         $this->selectedDate = Carbon::today()->toDateString();
+        $now= now();
+        // dd($now);
+        $shift = $this->detectCurrentShift($now);    
+        // dd($x);
+        $this->selectedDate=$shift['date'];
+        $this->selectedShift=$shift['shift'];
+        $this->getData();
+
     }
 
-    
-
-    public function getExpensesProperty()
+    public function updatedSelectedShift($v)
     {
-        return Expense::whereDate('created_at', $this->selectedDate)
+        $this->getData();
+    }
+    public function updatedSelectedDate($v)
+    {
+        $this->getData();
+    }
+
+    public function getData()
+    {
+        $res = $this->getShift($this->selectedDate, $this->selectedShift);
+        // dd($res);
+        $this->expenses = Expense::whereBetween('created_at', [$res['start'], $res['end']])
             ->orderByDesc('created_at')
             ->get();
+
+        $this->total= $this->expenses->sum('amount');
+
     }
 
-    public function getTotalForDayProperty()
-    {
-        return Expense::whereDate('created_at', $this->selectedDate)->sum('amount');
-    }
+
+
+
 
     public function addExpense()
     {
@@ -83,54 +107,59 @@ new class extends Component {
     </div>
 
     <!-- Date Filter -->
-    <div>
-        <flux:input type="date" label="Select Date" wire:model.live="selectedDate" />
+    <div class=" flex gap-4 p-4  rounded-xl shadow-lg w-full ">
+        <div class=" w-full">
+            <flux:input type="date" label="Select Date" wire:model.live="selectedDate" />
+        </div>
+        <div class=" w-full">
+            <flux:select label="Select Shift" wire:model.live="selectedShift">
+                <flux:select.option value="m">Morning</flux:select.option>
+                <flux:select.option value="e">Evening</flux:select.option>
+                <flux:select.option value="n">Night</flux:select.option>
+            </flux:select>
+        </div>
     </div>
 
     <!-- Expense Summary -->
     <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 rounded-lg p-4">
         <div class="text-lg font-semibold text-blue-800 dark:text-blue-300">
             Total Spent on {{ $selectedDate }}:
-            <span class="font-bold text-blue-600 dark:text-blue-200">Rs. {{ number_format($this->totalForDay, 2) }}</span>
+            <span class="font-bold text-blue-600 dark:text-blue-200">Rs. {{ number_format($this->total, 2) }}</span>
         </div>
     </div>
 
     <!-- Expense Table -->
-    @php $expenseList = $this->expenses @endphp
 
-    @if($expenseList->count())
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
-                <thead class="bg-gray-100 dark:bg-gray-700">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
+            <thead class="bg-gray-100 dark:bg-gray-700">
+                <tr>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">Amount</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">Given By</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">Given To</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">Purpose</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">Time</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">
+                @foreach($expenses as $expense)
                     <tr>
-                        <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">Amount</th>
-                        <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">Given By</th>
-                        <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">Given To</th>
-                        <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">Purpose</th>
-                        <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">Time</th>
+                        <td class="px-4 py-2">Rs. {{ number_format($expense->amount, 2) }}</td>
+                        <td class="px-4 py-2">{{ $expense->given_by }}</td>
+                        <td class="px-4 py-2">{{ $expense->given_to }}</td>
+                        <td class="px-4 py-2">{{ $expense->purpose }}</td>
+                        <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+                            {{ $expense->created_at->format('h:i A') }}
+                        </td>
                     </tr>
-                </thead>
-                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">
-                    @foreach($expenseList as $expense)
-                        <tr>
-                            <td class="px-4 py-2">Rs. {{ number_format($expense->amount, 2) }}</td>
-                            <td class="px-4 py-2">{{ $expense->given_by }}</td>
-                            <td class="px-4 py-2">{{ $expense->given_to }}</td>
-                            <td class="px-4 py-2">{{ $expense->purpose }}</td>
-                            <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
-                                {{ $expense->created_at->format('h:i A') }}
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
+                @endforeach
+            </tbody>
+        </table>
 
-            <div class="p-4">
-            </div>
+        <div class="p-4">
         </div>
-    @else
-        <div class="text-center py-8 text-gray-600 dark:text-gray-300">
-            No expenses found for {{ $selectedDate }}.
-        </div>
-    @endif
+    </div>
+    <div class="text-center py-8 text-gray-600 dark:text-gray-300">
+        No expenses found for {{ $selectedDate }}.
+    </div>
 </div>

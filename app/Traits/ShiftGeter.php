@@ -1,40 +1,75 @@
 <?php
 
+namespace App\Traits;
+
 use Carbon\Carbon;
+use InvalidArgumentException;
 
-if (!function_exists('getShiftTimeRange')) {
-    function getShiftTimeRange(int $shift, ?string $date = null): array
+trait ShiftGeter
+{
+
+    function getShift($date, $shift)
     {
-        $date = $date ? Carbon::parse($date)->startOfDay() : Carbon::today();
+        $date = Carbon::parse($date)->startOfDay();
 
-        switch ($shift) {
-            case 1: // Night Shift (Previous day 10 PM to current day 8 AM)
-                $start = $date->copy()->subDay()->setTime(22, 0); // 10 PM previous day
-                $end = $date->copy()->setTime(8, 0);              // 8 AM current day
-                break;
-
-            case 2: // Morning Shift (8 AM to 3 PM)
+        switch (strtolower($shift)) {
+            case 'm': // morning
                 $start = $date->copy()->setTime(8, 0);
                 $end = $date->copy()->setTime(15, 0);
                 break;
 
-            case 3: // Evening Shift (3 PM to 10 PM)
+            case 'e': // evening
                 $start = $date->copy()->setTime(15, 0);
                 $end = $date->copy()->setTime(22, 0);
                 break;
 
+            case 'n': // night
+                $start = $date->copy()->setTime(22, 0);
+                $end = $date->copy()->addDay()->setTime(8, 0);
+                break;
+
             default:
-                throw new InvalidArgumentException('Invalid shift number.');
+                throw new InvalidArgumentException("Invalid shift: $shift (use 'm', 'e', or 'n')");
         }
 
         return [
             'start' => $start,
             'end' => $end,
-            'label' => match ($shift) {
-                1 => 'Night (10 PM – 8 AM)',
-                2 => 'Morning (8 AM – 3 PM)',
-                3 => 'Evening (3 PM – 10 PM)',
-            },
+        ];
+    }
+    function detectCurrentShift($now = null)
+    {
+        $now = $now ? Carbon::parse($now) : Carbon::now();
+
+        $hour = $now->hour;
+        $date = $now->copy()->startOfDay(); // default shift date
+
+        if ($hour >= 8 && $hour < 15) {
+            $shift = 'm';
+            $start = $date->copy()->setTime(8, 0);
+            $end = $date->copy()->setTime(15, 0);
+        } elseif ($hour >= 15 && $hour < 22) {
+            $shift = 'e';
+            $start = $date->copy()->setTime(15, 0);
+            $end = $date->copy()->setTime(22, 0);
+        } else {
+            // It's night
+            $shift = 'n';
+
+            // if between 00:00 and 07:59 → use previous date
+            if ($hour < 8) {
+                $date->subDay();
+            }
+
+            $start = $date->copy()->setTime(22, 0);
+            $end = $date->copy()->addDay()->setTime(8, 0);
+        }
+
+        return [
+            'shift' => $shift,
+            'date' => $date->toDateString(),
+            'start' => $start,
+            'end' => $end,
         ];
     }
 }

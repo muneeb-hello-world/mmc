@@ -4,9 +4,13 @@ use App\Models\Doctor;
 use App\Models\ServiceTransaction;
 use App\Models\LabTestTransaction;
 use App\Models\DoctorPayout;
+use App\Traits\ToastHelper;
 use Carbon\Carbon;
 
 new class extends Component {
+
+    use ToastHelper;
+
     public $doctors;
     public $selectedDoctor;
     public $fromDate;
@@ -77,6 +81,7 @@ new class extends Component {
             ->whereBetween('created_at', [$this->fromDate, $this->toDate])
             ->whereNull('doctor_payout_id')
             ->where('arrived', true)
+            ->where('is_returned', false)
             ->get();
         // dd($this->unpaidServices);
 
@@ -84,6 +89,7 @@ new class extends Component {
             ->where('doctor_id', $this->selectedDoctor)
             ->whereBetween('created_at', [$this->fromDate, $this->toDate])
             ->whereNull('doctor_payout_id')
+            ->where('is_returned', false)
             ->get();
 
         $this->totalAmount = $this->unpaidServices->sum('doctor_share') +
@@ -93,7 +99,8 @@ new class extends Component {
     public function payDoctor()
     {
         if ($this->totalAmount <= 0) {
-            session()->flash('error', 'No payout due.');
+            $this->showToast('info', 'No payout due.');
+
             return;
         }
 
@@ -121,7 +128,7 @@ new class extends Component {
 
         // Refresh
         $this->loadUnpaidTransactions();
-        session()->flash('success', 'Payout completed successfully.');
+        $this->showToast('success', 'Payout completed successfully.');
     }
 };
 
@@ -397,6 +404,6 @@ new class extends Component {
             animation: spin 1s linear infinite;
         }
     </style>
-    <livewire:viewdocpayout/>
+    <livewire:viewdocpayout />
 
 </div>
