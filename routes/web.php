@@ -22,9 +22,26 @@ Route::get('/', function () {
     return view('welcome');
 })->name('home');
 
+
 Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
+
+Route::middleware(['auth', 'role:admin'])->group(function () {
+    // Route::get('/admin-dashboard', AdminDashboard::class);
+    Volt::route('admin/serviceshare', 'DoctorServiceShareManagementComponent')->name('admin.serviceshare');
+    Volt::route('admin/doctorsmanagment', 'DoctorsManagementComponent')->name('admin.doctors');
+    Volt::route('admin/servicesmanagment', 'ServicesManagementComponent')->name('admin.services');
+    Volt::route('endofshift', 'endOfShift')->name('end');
+    Volt::route('admin/labtests', 'LabTestsManager')->name('admin.labtests');
+    Volt::route('admin/labtestsshare', 'LabTestsShareManager')->name('admin.labtestsshare');
+    Volt::route('tinker', 'freeTinker')->name('tinker');
+
+
+
+
+
+});
 
 Route::middleware(['auth'])->group(function () {
     Route::redirect('settings', 'settings/profile');
@@ -34,21 +51,14 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('settings/appearance', 'settings.appearance')->name('settings.appearance');
 
     // Volt::route('admin', 'AdminComponent')->name('admin');
-    Volt::route('admin/serviceshare', 'DoctorServiceShareManagementComponent')->name('admin.serviceshare');
-    Volt::route('admin/doctorsmanagment', 'DoctorsManagementComponent')->name('admin.doctors');
-    Volt::route('admin/servicesmanagment', 'ServicesManagementComponent')->name('admin.services');
     Volt::route('reception', 'Reception')->name('reception');
     Volt::route('labentry', 'LabEntry')->name('labentry');
     Volt::route('case', 'casesCrud')->name('case');
     Volt::route('payout', 'doctorsPayout')->name('payout');
-    Volt::route('endofshift', 'endOfShift')->name('end');
     Volt::route('expence', 'expence')->name('expence');
     Volt::route('showtransactions', 'showTransactions')->name('showtrans');
     Volt::route('case/view/{id}', 'casesView')->name('caseview');
-    Volt::route('admin/labtests', 'LabTestsManager')->name('admin.labtests');
     Volt::route('bookings', 'bookings')->name('bookings');
-    Volt::route('admin/labtestsshare', 'LabTestsShareManager')->name('admin.labtestsshare');
-    Volt::route('tinker', 'freeTinker')->name('tinker');
 
 });
 
