@@ -3,155 +3,136 @@
 use Livewire\Volt\Component;
 use App\Models\LabTest;
 use App\Traits\ToastHelper;
-use Carbon\Carbon;
 
 new class extends Component {
     use ToastHelper;
+
     public $name;
     public $price;
     public $days_required;
     public $fromOutsideLab = false;
-    public $tests=[];
+    public $tests = [];
     public $test_id;
-    public $costPrice = 18;
-public $isModelCreating = 1;
-
+    public $costPrice;
+    public $isModelCreating = true; // true for create, false for edit
 
     public function mount()
     {
         $this->getTest();
     }
 
-public function CreateTest()
-{
-    // dd($this->fromOutsideLab);
-    $this->validate([
-        'name' => 'required|string|max:255',
-        'price' => 'required|numeric|min:0',
-        'days_required' => 'required|integer|min:1',
-    ]);
-
-  
-
-
-    $test = LabTest::create([
-        'name' => $this->name,
-        'price' => $this->price,
-        'days_required' => $this->days_required,
-        'fromOutsideLab' => $this->fromOutsideLab,
-        'cost_price_percentage' => $this->costPrice ? $this->costPrice : null
-    ]);
-        
-
-    if ($test) {
-        // session()->flash('message', 'Doctor created successfully.');
-        $this->showToast('success','Test created successfully.');
-
-        $this->reset(['name', 'price', 'days_required', 'costPrice', 'fromOutsideLab']);
-        Flux::modal('add-test')->close();
-    } else {
-        session()->flash('error', 'Failed to create test.');
-    }
-
-    $this->getTest();
-}
-
-    public function getTest()
+    public function updatedFromOutsideLab()
     {
-        // Logic to fetch tests from the database
-        $this->tests = LabTest::all();
-        // dd($this->tests);
+        // Auto-set cost price percentage when lab type changes
+        $this->costPrice = $this->fromOutsideLab ? 60 : 18;
     }
 
-    public function deleteTest($id)
+    public function createTest()
     {
-        $test = LabTest::find($id);
-        if ($test) {
-            $test->delete();
-            // session()->flash('message', 'Doctor deleted successfully.');
-        $this->showToast('danger','Test deleted successfully.');
+        $this->validateFields();
 
-
-            $this->getTest();
-        } else {
-            // session()->flash('error', 'Doctor not found.');
-        $this->showToast('danger','Test not found.');
-        }
-    }
-
-    public function TestEdit($id){
-    $test = LabTest::find($id);
-    // dd($doctor);
-     // dd($this->start_time, $this->end_time , $this->onpayroll);
-    if($test){
-        $this->test_id = $test->id;
-        $this->isModelCreating = 0; // editing mode
-
-        $this->name = $test->name;
-        $this->price = $test->price;
-        $this->days_required = $test->days_required;
-        $this->costPrice = $test->cost_price;
-        $this->fromOutsideLab = $test->fromOutsideLab;
-
-        Flux::modal('add-test')->show();
-    } else {
-        session()->flash('error', 'Test not found.');
-    }
-}
-
-    public function OpenAddTest()
-{
-    $this->reset(['name', 'price', 'days_required', 'costPrice', 'fromOutsideLab']);
-
-    $this->isModelCreating = true;
-
-    Flux::modal('add-test')->show();
-}
-public function UpdateTest()
-{
-    // dd($this->start_time, $this->end_time , $this->onpayroll);
-    $this->validate([
-        'name' => 'required|string|max:255',
-        'price' => 'required|numeric|min:0',
-        'days_required' => 'required|integer|min:1',
-    ]);
-
-    $test = LabTest::find($this->test_id);
-
-    if ($test) {
-        $test->update([
+        LabTest::create([
             'name' => $this->name,
             'price' => $this->price,
             'days_required' => $this->days_required,
+            'fromOutsideLab' => $this->fromOutsideLab,
+            'cost_price_percentage' => $this->costPrice
         ]);
+
+        $this->showToast('success', 'Test created successfully.');
+        $this->resetForm();
+        Flux::modal('add-test')->close();
+        $this->getTest();
+    }
+
+    public function updateTest()
+    {
+        $this->validateFields();
+
+        $test = LabTest::find($this->test_id);
+
+        if (!$test) {
+            return $this->showToast('danger', 'Test not found.');
+        }
 
         $test->update([
             'name' => $this->name,
             'price' => $this->price,
             'days_required' => $this->days_required,
             'fromOutsideLab' => $this->fromOutsideLab,
-            'cost_price_percentage' => $this->costPrice ? $this->costPrice : null
+            'cost_price_percentage' => $this->costPrice
         ]);
 
-        // session()->flash('message', 'Doctor updated successfully.');
-        $this->showToast('success','Test updated successfully.');
+        $this->showToast('success', 'Test updated successfully.');
+        $this->resetForm();
         Flux::modal('add-test')->close();
-
-        $this->reset(['name', 'price' , 'days_required' , 'costPrice', 'fromOutsideLab']);
-
-        $this->isModelCreating = 1;
-
         $this->getTest();
-    } else {
-        // session()->flash('error', 'Failed to update doctor.');
-        $this->showToast('danger','Failed to update Test.');
     }
-}
 
+    public function deleteTest($id)
+    {
+        $test = LabTest::find($id);
 
+        if (!$test) {
+            return $this->showToast('danger', 'Test not found.');
+        }
 
-    
-}; ?>
+        $test->delete();
+        $this->showToast('danger', 'Test deleted successfully.');
+        $this->getTest();
+    }
+
+    public function testEdit($id)
+    {
+        $test = LabTest::find($id);
+
+        if (!$test) {
+            return $this->showToast('danger', 'Test not found.');
+        }
+
+        $this->test_id = $test->id;
+        $this->isModelCreating = false;
+
+        $this->name = $test->name;
+        $this->price = $test->price;
+        $this->days_required = $test->days_required;
+        $this->fromOutsideLab = $test->fromOutsideLab;
+        $this->costPrice = $test->cost_price_percentage;
+
+        Flux::modal('add-test')->show();
+    }
+
+    public function openAddTest()
+    {
+        $this->resetForm();
+        $this->isModelCreating = true;
+        Flux::modal('add-test')->show();
+    }
+
+    private function getTest()
+    {
+        $this->tests = LabTest::all();
+    }
+
+    private function validateFields()
+    {
+        $this->validate([
+            'name' => 'required|string|max:255',
+            'price' => 'required|numeric|min:0',
+            'days_required' => 'required|integer|min:1',
+        ]);
+
+        // Ensure cost price is correct before saving
+        $this->costPrice = $this->fromOutsideLab ? 40 : 18;
+    }
+
+    private function resetForm()
+    {
+        $this->reset(['name', 'price', 'days_required', 'fromOutsideLab', 'costPrice', 'test_id']);
+        $this->isModelCreating = true;
+    }
+};
+?>
 
 <div>
     <!-- Table Section -->
@@ -206,7 +187,7 @@ public function UpdateTest()
                                                     <flux:error name="fromOutsideLab" />
                                                 </flux:field>
 
-                                                <flux:input wire:model="costPrice" label="Cost Price Percentage" type="text" placeholder="100" />
+                                                <flux:input disabled readonly wire:model="costPrice" label="Cost Price Percentage" type="text" placeholder="100" />
 
                                                 </div>
 
@@ -215,7 +196,7 @@ public function UpdateTest()
                                             <div class="flex">
                                                 <flux:spacer />
 
-                                                <flux:button wire:click="{{ $isModelCreating ? 'CreateTest' : 'UpdateTest'}}" variant="primary">Save changes</flux:button>
+                                                <flux:button wire:click="{{ $isModelCreating ? 'createTest' : 'updateTest'}}" variant="primary">Save changes</flux:button>
                                             </div>
                                         </div>
                                     </flux:modal>
@@ -330,7 +311,7 @@ public function UpdateTest()
                                        
                                         <td class="size-px whitespace-nowrap">
                                             <div class="px-6 py-1.5">
-                                                <flux:button wire:click="TestEdit({{ $test->id }})" class=" mr-2"  >
+                                                <flux:button wire:click="testEdit({{ $test->id }})" class=" mr-2"  >
                                                     Edit
                                                 </flux:button>
                                                 <flux:button variant="danger" size="sm" wire:confirm="Are you sure you want to delete the {{ $test->name }}?" wire:click="deleteTest({{ $test->id }})" >

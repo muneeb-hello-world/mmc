@@ -12,6 +12,7 @@ use Flux\Flux;
 use Illuminate\Support\Facades\DB;
 use App\Traits\PrintsReceipt;
 use App\Traits\ToastHelper;
+use App\Traits\ShiftGeter;
 
 
 new class extends Component {
@@ -19,6 +20,7 @@ new class extends Component {
     use PrintsReceipt;
     use ToastHelper;
 
+    use ShiftGeter;
 
     public $patient = ['name' => '', 'contact' => '', 'age' => '', 'gender' => ''];
     public $services;
@@ -36,10 +38,23 @@ new class extends Component {
 
     public function mount()
     {
-        $this->services = Service::all();
-        $this->selectedService = $this->services[0]->id;
+        $this->services = Service::query()
+            ->orderByRaw("
+            CASE
+                WHEN name = 'Consultation' THEN 1
+                WHEN name = 'Drip' THEN 2
+                WHEN name = 'BSR' THEN 3
+                WHEN name = 'Bandage' THEN 4
+                ELSE 5
+            END
+        ")
+            ->orderBy('name') // alphabetical for the rest
+            ->get();
 
+        $this->selectedService = $this->services[0]->id;
+        $this->updatedSelectedService($this->selectedService);
     }
+
 
 
     public function updatedSelectedService($value)
@@ -49,7 +64,14 @@ new class extends Component {
             $service = Service::with('doctorShares')->find($value);
 
             if ($service->is_doctor_related) {
-                $this->docs = $service->doctorShares;
+                $this->docs = $service->doctorShares
+                    ->sortBy(function ($share) {
+                        // Priority rank
+                        $rank = $share->doctor->id == 12 ? 0 : 1;
+                        return [$rank, strtolower($share->doctor->name)];
+                    })
+                    ->values();
+
 
                 $this->selectedDoctor = $this->docs[0]->doctor->id ?? null;
 
@@ -107,15 +129,28 @@ new class extends Component {
 
     public function getToken($service_id, $doctor_id)
     {
+        // Special rule for service_id = 13 and doctor_id = 12
+        if ($service_id == 13 && $doctor_id == 12) {
+            $shift = $this->detectCurrentShift();
+
+            $maxToken = ServiceTransaction::where('doctor_id', $doctor_id)
+                ->where('service_id', $service_id)
+                ->whereBetween('created_at', [$shift['start'], $shift['end']])
+                ->max('token');
+
+            return ($maxToken ?? 0) + 1;
+        }
+
+        // Default: reset daily
         $maxToken = ServiceTransaction::where('doctor_id', $doctor_id)
             ->where('service_id', $service_id)
             ->whereDate('created_at', Carbon::today())
-            ->max('token') + 1;
+            ->max('token');
+
         return ($maxToken ?? 0) + 1;
-
-        // dd($nextTokenNumber);
-
     }
+
+
 
     public function getPrice()
     {
@@ -154,91 +189,6 @@ new class extends Component {
     }
 
 
-
-    // public function createServiceTransaction()
-    // {
-    //     $this->validate([
-    //         'patient.name' => 'required|string|max:255',
-    //         'selectedServices' => 'required|array|min:1'
-    //     ]);
-
-    //     DB::beginTransaction();
-
-    //     try {
-    //         // Step 1: Create Patient
-    //         $patient = Patient::create([
-    //             'name' => $this->patient['name'],
-    //             'contact' => $this->patient['contact'] ?? null,
-    //             'age' => is_numeric($this->patient['age']) ? (int) $this->patient['age'] : null,
-    //             'gender' => $this->patient['gender'] ?? null,
-    //         ]);
-
-    //         if (!$patient) {
-    //             throw new \Exception('Failed to create patient.');
-    //         }
-
-    //         // Step 2: Create Service Transactions
-    //         $serviceTransactions = [];
-
-    //         foreach ($this->selectedServices as $service) {
-    //             $share = DoctorServiceShare::where('doctor_id', $service['doctor_id'])
-    //                 ->where('service_id', $service['service_id'])
-    //                 ->first();
-
-    //             $doctorSharePercent = $share->doctor_share_percent ?? 0;
-    //             $hospitalSharePercent = $share->hospital_share_percent ?? 0;
-
-    //             $price = $service['price'];
-    //             $doctorShare = ($doctorSharePercent / 100) * $price;
-    //             $hospitalShare = ($hospitalSharePercent / 100) * $price;
-
-    //             $transaction = ServiceTransaction::create([
-    //                 'patient_id' => $patient->id,
-    //                 'service_id' => $service['service_id'],
-    //                 'doctor_id' => $service['doctor_id'],
-    //                 'price' => $price,
-    //                 'doctor_share' => $doctorShare,
-    //                 'hospital_share' => $hospitalShare,
-    //                 'booking' => false,
-    //                 'arrived' => true,
-    //                 'token' => $service['token'] ?? null
-    //             ]);
-
-    //             $serviceTransactions[] = $transaction;
-    //         }
-
-    //         // Step 3: Create Payment
-    //         $payment = \App\Models\Payment::create([
-    //             'patient_id' => $patient->id,
-    //             'amount' => $this->totalPrice,
-    //             'method' => $this->paymentMethod,
-    //             'remarks' => 'Service Payment',
-    //         ]);
-
-    //         foreach ($serviceTransactions as $transaction) {
-    //             \App\Models\PaymentService::create([
-    //                 'payment_id' => $payment->id,
-    //                 'service_transaction_id' => $transaction->id,
-    //                 'amount' => $transaction->price,
-    //             ]);
-    //         }
-
-    //         DB::commit();
-
-    //         $this->showToast('success', 'Patient and Payment Created Successfully');
-    //         $this->print();
-    //         $this->resetForm();
-
-    //     } catch (\Exception $e) {
-    //         DB::rollBack();
-
-    //         // Optional: Log error for debugging
-    //         // \Log::error("Transaction Error: " . $e->getMessage());
-
-    //         $this->showToast('error', 'Transaction Failed: ' . $e->getMessage());
-    //         return;
-    //     }
-    // }
 
 
 
@@ -356,7 +306,7 @@ new class extends Component {
         $this->changedPrice = null;
         $this->selectedService = $this->services[0]->id;
 
-
+        $this->mount();
     }
 
     public function showToast($type, $message)

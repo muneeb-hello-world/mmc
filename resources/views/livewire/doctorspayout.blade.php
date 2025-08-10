@@ -76,13 +76,14 @@ new class extends Component {
 
     public function loadUnpaidTransactions()
     {
-        $this->unpaidServices = ServiceTransaction::with('patient')
+        $this->unpaidServices = ServiceTransaction::with(['patient', 'service']) // added service
             ->where('doctor_id', $this->selectedDoctor)
             ->whereBetween('created_at', [$this->fromDate, $this->toDate])
             ->whereNull('doctor_payout_id')
             ->where('arrived', true)
             ->where('is_returned', false)
             ->get();
+
         // dd($this->unpaidServices);
 
         $this->unpaidLabs = LabTestTransaction::with('patient')
@@ -250,7 +251,7 @@ new class extends Component {
                                 <tr>
                                     <th
                                         class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                        Type
+                                        Service
                                     </th>
                                     <th
                                         class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -277,7 +278,7 @@ new class extends Component {
                                             <span
                                                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200">
                                                 <i class="fas fa-stethoscope mr-1"></i>
-                                                Service
+                                                {{ $tx->service->name ?? 'Service' }}
                                             </span>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">

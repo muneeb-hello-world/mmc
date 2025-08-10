@@ -12,7 +12,7 @@
             </a>
 
             <flux:navlist variant="outline">
-                <flux:navlist.group :heading="__('Reception')" class="grid">
+                <flux:navlist.group expandable :expanded="false" :heading="__('Reception')" class="grid">
                     <flux:navlist.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>{{ __('Dashboard') }}</flux:navlist.item>
                     <flux:navlist.item icon="bolt" :href="route('reception')" :current="request()->routeIs('reception')" wire:navigate>{{ __('Reception') }}</flux:navlist.item>
                     <flux:navlist.item icon="briefcase" :href="route('case')" :current="request()->routeIs('case')" wire:navigate>{{ __('Case') }}</flux:navlist.item>
@@ -24,7 +24,7 @@
                 </flux:navlist.group>
             </flux:navlist>
             <flux:navlist variant="outline">
-                <flux:navlist.group :heading="__('Admin')" class="grid">
+                <flux:navlist.group expandable :expanded="false" :heading="__('Admin')" class="grid">
                     <flux:navlist.item icon="banknotes" :href="route('end')" :current="request()->routeIs('end')" wire:navigate>{{ __('End Of Shift') }}</flux:navlist.item>
                     <flux:navlist.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>{{ __('Dashboard') }}</flux:navlist.item>
                     <flux:navlist.item icon="user" :href="route('admin.doctors')" :current="request()->routeIs('admin.doctors')" wire:navigate>{{ __('Doctors') }}</flux:navlist.item>

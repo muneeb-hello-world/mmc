@@ -6,6 +6,7 @@ use App\Traits\ToastHelper;
 
 new class extends Component {
     use ToastHelper;
+
     public $doctor_service_share_id;
     public $shares;
     public $doctor_id;
@@ -15,21 +16,37 @@ new class extends Component {
     public $price;
     public $doctor_share_percent;
     public $hospital_share_percent;
-    public $doctorServiceShares = [];
+    public $isModelCreating = true; // default is create mode
 
     public function mount()
     {
         $this->getShares();
-        $this->doctors= \App\Models\Doctor::all(); // Fetch all doctors
-        $this->doctor_id=$this->doctors->first()->id ?? null; // Set default doctor_id if available
-        $this->services = \App\Models\Service::all(); // Fetch all services
-        $this->service_id=$this->services->first()->id ?? null; // Set default service_id if available
-
+        $this->doctors = \App\Models\Doctor::all();
+        $this->services = \App\Models\Service::all();
+        $this->setDefaultSelections();
     }
 
-    public function createShare()
+    private function setDefaultSelections()
     {
-        // dd($this->doctor_id, $this->service_id, $this->price, $this->doctor_share_percent, $this->hospital_share_percent);
+        $this->doctor_id = $this->doctors->first()->id ?? null;
+        $this->service_id = $this->services->first()->id ?? null;
+    }
+
+    private function resetForm()
+    {
+        $this->reset([
+            'doctor_service_share_id',
+            'doctor_id',
+            'service_id',
+            'price',
+            'doctor_share_percent',
+            'hospital_share_percent'
+        ]);
+        $this->setDefaultSelections();
+    }
+
+    private function validateShares()
+    {
         $this->validate([
             'doctor_id' => 'required|exists:doctors,id',
             'service_id' => 'required|exists:services,id',
@@ -37,6 +54,17 @@ new class extends Component {
             'doctor_share_percent' => 'required|numeric|min:0|max:100',
             'hospital_share_percent' => 'required|numeric|min:0|max:100',
         ]);
+
+        if (($this->doctor_share_percent + $this->hospital_share_percent) > 100) {
+            $this->addError('doctor_share_percent', 'Total share percentages cannot exceed 100%.');
+            return false;
+        }
+        return true;
+    }
+
+    public function createShare()
+    {
+        if (!$this->validateShares()) return;
 
         $share = DoctorServiceShare::create([
             'doctor_id' => $this->doctor_id,
@@ -47,87 +75,59 @@ new class extends Component {
         ]);
 
         if ($share) {
-            // session()->flash('message', 'Doctor service share created successfully.');
-        $this->showToast('success', 'Doctor service share created successfully.');
-
-            $this->reset([
-                'doctor_id',
-                'service_id',
-                'price',
-                'doctor_share_percent',
-                'hospital_share_percent'
-            ]);
-            Flux::modal('add-share')->close(); // adjust modal name as needed
+            $this->showToast('success', 'Doctor service share created successfully.');
+            $this->resetForm();
+            $this->getShares();
+            Flux::modal('add-share')->close();
         } else {
-            // session()->flash('error', 'Failed to create doctor service share.');
             $this->showToast('error', 'Failed to create doctor service share.');
         }
-
-        $this->mount();
     }
 
     public function getShares()
     {
-        // Logic to fetch doctors from the database
-
         $this->shares = DoctorServiceShare::with(['doctor', 'service'])->get();
     }
 
-
     public function editShare($id)
     {
-        $share = DoctorServiceShare::with(['doctor', 'service'])->find($id);
+        $share = DoctorServiceShare::find($id);
 
-        if ($share) {
-            $this->doctor_service_share_id = $share->id; // to use during update
-            $this->isModelCreating = 0; // editing mode
-
-            $this->doctor_id = $share->doctor_id;
-            $this->service_id = $share->service_id;
-            $this->price = $share->price;
-            $this->doctor_share_percent = $share->doctor_share_percent;
-            $this->hospital_share_percent = $share->hospital_share_percent;
-
-            Flux::modal('add-share')->show(); // show modal for editing
-        } else {
-            // session()->flash('error', 'Doctor Service Share not found.');
+        if (!$share) {
             $this->showToast('error', 'Doctor Service Share not found.');
+            return;
         }
+
+        $this->doctor_service_share_id = $share->id;
+        $this->isModelCreating = false;
+
+        $this->doctor_id = $share->doctor_id;
+        $this->service_id = $share->service_id;
+        $this->price = $share->price;
+        $this->doctor_share_percent = $share->doctor_share_percent;
+        $this->hospital_share_percent = $share->hospital_share_percent;
+
+        Flux::modal('add-share')->show();
     }
 
+    public function openAddShare()
+    {
+        $this->resetForm();
+        $this->isModelCreating = true;
+        Flux::modal('add-share')->show();
+    }
 
-   public function OpenAddShare()
-{
-    $this->reset([
-        'doctor_service_share_id',
-        'doctor_id',
-        'service_id',
-        'price',
-        'doctor_share_percent',
-        'hospital_share_percent',
-    ]);
-        $this->doctor_id=$this->doctors->first()->id ?? null; // Set default doctor_id if available
-        $this->service_id=$this->services->first()->id ?? null; // Set default service_id if available
+    public function updateShare()
+    {
+        if (!$this->validateShares()) return;
 
-    $this->isModelCreating = 1;
+        $share = DoctorServiceShare::find($this->doctor_service_share_id);
 
-    // Optional: Open the modal (uncomment if needed)
-    // Flux::modal('')->show();
-}
+        if (!$share) {
+            $this->showToast('error', 'Doctor service share not found.');
+            return;
+        }
 
-  public function UpdateShare()
-{
-    $this->validate([
-        'doctor_id' => 'required|exists:doctors,id',
-        'service_id' => 'required|exists:services,id',
-        'price' => 'required|numeric|min:0',
-        'doctor_share_percent' => 'required|numeric|min:0|max:100',
-        'hospital_share_percent' => 'required|numeric|min:0|max:100',
-    ]);
-
-    $share = DoctorServiceShare::find($this->doctor_service_share_id);
-
-    if ($share) {
         $share->update([
             'doctor_id' => $this->doctor_id,
             'service_id' => $this->service_id,
@@ -136,41 +136,26 @@ new class extends Component {
             'hospital_share_percent' => $this->hospital_share_percent,
         ]);
 
-        // session()->flash('message', 'Doctor service share updated successfully.');
         $this->showToast('success', 'Doctor service share updated successfully.');
+        $this->resetForm();
+        $this->getShares();
         Flux::modal('add-share')->close();
-
-        $this->reset([
-            'doctor_service_share_id',
-            'doctor_id',
-            'service_id',
-            'price',
-            'doctor_share_percent',
-            'hospital_share_percent',
-        ]);
-        $this->isModelCreating = 1;
-
-        $this->getShares(); // Refresh list
-    } else {
-        session()->flash('error', 'Failed to update doctor service share.');
     }
-}
 
-   public function deleteShare($id)
-{
-    $share = DoctorServiceShare::find($id);
+    public function deleteShare($id)
+    {
+        $share = DoctorServiceShare::find($id);
 
-    if ($share) {
-        $share->delete();
-        session()->flash('message', 'Doctor service share deleted successfully.');
-        $this->getShares(); // Refresh list
-    } else {
-        session()->flash('error', 'Doctor service share not found.');
+        if ($share) {
+            $share->delete();
+            $this->showToast('success', 'Doctor service share deleted successfully.');
+            $this->getShares();
+        } else {
+            $this->showToast('error', 'Doctor service share not found.');
+        }
     }
-}
-
-}; ?>
-
+};
+?>
 <div>
   <!-- Table Section -->
     <div class="max-w-[85rem] px-4 py-10 sm:px-6 lg:px-8 lg:py-14 mx-auto">
@@ -199,9 +184,10 @@ new class extends Component {
                                         View all
                                     </a>
 
-                                    <flux:modal.trigger name="add-share" variant="primary" color="blue">
-                                        <flux:button wire:click="OpenAddShare">Add Service Share</flux:button>
-                                    </flux:modal.trigger>
+                                   <flux:modal.trigger name="add-share" variant="primary" color="blue">
+    <flux:button wire:click="openAddShare">Add Service Share</flux:button>
+</flux:modal.trigger>
+
 
                                     <flux:modal name="add-share" class="md:w-96">
                                         <div class="space-y-6">
@@ -234,7 +220,11 @@ new class extends Component {
                                             <div class="flex">
                                                 <flux:spacer />
 
-                                                <flux:button wire:click="createShare" variant="primary">Save changes</flux:button>
+                                                <flux:button 
+    wire:click="{{ $isModelCreating ? 'createShare' : 'updateShare' }}" 
+    variant="primary">
+    {{ $isModelCreating ? 'Create Share' : 'Update Share' }}
+</flux:button>
                                             </div>
                                         </div>
                                     </flux:modal>

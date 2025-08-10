@@ -1,6 +1,7 @@
 <?php
 
 use Livewire\Volt\Component;
+use Illuminate\Support\Facades\DB;
 use App\Models\LabTest;
 use App\Models\Patient;
 use App\Models\Payment;
@@ -9,60 +10,63 @@ use App\Models\DoctorLabShare;
 use App\Models\LabTestTransaction;
 use App\Traits\PrintsReceipt;
 
-
-
 new class extends Component {
     use PrintsReceipt;
 
+    // Patient & Doctor
     public $patient = ['name' => '', 'contact' => '', 'age' => '', 'gender' => ''];
-    public $labTests;
-    public $originalTests = [];
-    public $paymentMethod = "Cash";
-
+    public $selectedDoctor = null;
     public $docs = [];
-    public $discount = null;
 
+    // Lab Tests
+    public $labTests;
     public $selectedTest;
     public $selectedTests = [];
-    public $selectedDoctor;
-    public $price;
-    public $totalPrice = 0;
+    public $originalTests = [];
 
+    // Pricing & Payment
+    public $discount = null;
+    public $totalPrice = 0;
+    public $paymentMethod = "Cash";
 
     public function mount()
     {
         $this->labTests = LabTest::all();
-        $this->selectedTest = $this->labTests->first()->id ?? null; // Set default selected test
+        $this->selectedTest = $this->labTests->first()->id ?? null;
         $this->docs = DoctorLabShare::with('doctor')->get();
-        // dd($this->docs);
-
     }
 
-    public function UpdatedDiscount($value)
+    /* ------------------------
+     | Discount Handling
+     ------------------------ */
+    public function updatedDiscount($value)
     {
-        if (count($this->selectedTests)) {
+        if (!count($this->selectedTests)) {
             return;
         }
+
         if ($value === null || $value === '') {
-            // Reset prices to original when discount is cleared
             $this->selectedTests = $this->originalTests;
-            $this->calculateTotalPrice();
-            return;
+            return $this->calculateTotalPrice();
         }
 
         if ($value < 0 || $value > 100) {
             $this->showToast('error', 'Discount must be between 0 and 100');
             $this->discount = null;
             $this->selectedTests = $this->originalTests;
-            $this->calculateTotalPrice();
-            return;
+            return $this->calculateTotalPrice();
         }
 
-        $this->selectedTests = array_map(function ($test, $originalTest) use ($value) {
+        $this->applyDiscount($value);
+    }
+
+    private function applyDiscount($percent)
+    {
+        $this->selectedTests = array_map(function ($test, $originalTest) use ($percent) {
             $cost = $originalTest['cost_price'];
             $originalProfit = $originalTest['profit'];
 
-            $discountOnProfit = ($value / 100) * $originalProfit;
+            $discountOnProfit = ($percent / 100) * $originalProfit;
             $newProfit = $originalProfit - $discountOnProfit;
 
             $test['profit'] = $newProfit;
@@ -74,80 +78,77 @@ new class extends Component {
         $this->calculateTotalPrice();
     }
 
-
+    /* ------------------------
+     | Test Selection
+     ------------------------ */
     public function addTest()
     {
-        $SelectedTest = LabTest::find($this->selectedTest);
-
-        // Prevent duplicate test
-        $alreadyAdded = collect($this->selectedTests)
-            ->pluck('test_id')
-            ->contains($SelectedTest->id);
-
-        if ($alreadyAdded) {
-            $this->showToast('danger', 'This test is already added.');
-            return;
+        $selectedTestModel = LabTest::find($this->selectedTest);
+        if (!$selectedTestModel) {
+            return $this->showToast('error', 'Invalid test selected.');
         }
 
-        $cost = $SelectedTest->price * $SelectedTest->cost_price_percentage / 100;
-        $profit = ($SelectedTest->price - $cost);
+        if (collect($this->selectedTests)->pluck('test_id')->contains($selectedTestModel->id)) {
+            return $this->showToast('danger', 'This test is already added.');
+        }
 
-        $this->selectedTests[] = [
-            'test_id' => $SelectedTest->id,
-            'cost_price' => $cost,
-            'profit' => $profit,
-            'days' => $SelectedTest->days_required,
-            'test_name' => $SelectedTest->name,
-            'original_price' => $SelectedTest->price,
-            'price' => $SelectedTest->price, // will change on discount
+        $cost = $selectedTestModel->price * $selectedTestModel->cost_price_percentage / 100;
+        $profit = $selectedTestModel->price - $cost;
+
+        $testData = [
+            'test_id'        => $selectedTestModel->id,
+            'cost_price'     => $cost,
+            'profit'         => $profit,
+            'days'           => $selectedTestModel->days_required,
+            'test_name'      => $selectedTestModel->name,
+            'original_price' => $selectedTestModel->price,
+            'price'          => $selectedTestModel->price,
         ];
 
+        $this->selectedTests[] = $testData;
+        $this->originalTests[] = $testData;
 
-
-        $this->originalTests = $this->selectedTests;
         $this->calculateTotalPrice();
     }
 
-
-
     public function deleteTest($index)
     {
-        unset($this->selectedTests[$index]);
-        unset($this->originalTests[$index]);
-
+        unset($this->selectedTests[$index], $this->originalTests[$index]);
         $this->selectedTests = array_values($this->selectedTests);
         $this->originalTests = array_values($this->originalTests);
 
         $this->calculateTotalPrice();
-
     }
 
-    public function calculateTotalPrice()
+    private function calculateTotalPrice()
     {
         $this->totalPrice = array_sum(array_column($this->selectedTests, 'price'));
     }
 
-    // STart
+    /* ------------------------
+     | Main Transaction Flow
+     ------------------------ */
     public function createLabTestTransaction()
     {
         $this->validate([
-            'patient.name' => 'required|string|max:255',
-            'patient.contact' => 'required|string|max:255',
-            'patient.age' => 'required|string|max:255',
-            'selectedTests' => 'required|array|min:1',
-            'paymentMethod' => 'required|string|in:Cash,Online',
+            'patient.name'     => 'required|string|max:255',
+            'patient.contact'  => 'required|string|max:255',
+            'patient.age'      => 'required|string|max:255',
+            'selectedTests'    => 'required|array|min:1',
+            'paymentMethod'    => 'required|string|in:Cash,Online',
         ]);
 
         DB::beginTransaction();
 
         try {
-            $patient = $this->createPatient();
+            $patient      = $this->createPatient();
             $transactions = $this->createLabTransactions($patient);
             $this->createLabPayment($patient, $transactions);
+
             DB::commit();
 
             $this->showToast('success', 'Test Added Successfully');
-            $this->print($patient, $transactions);
+            $this->printReceipt($patient);
             $this->resetForm();
 
         } catch (\Exception $e) {
@@ -159,9 +160,9 @@ new class extends Component {
     private function createPatient()
     {
         $patient = Patient::create([
-            'name' => $this->patient['name'],
-            'contact' => $this->patient['contact'] ?? null,
-            'age' => is_numeric($this->patient['age']) ? (int) $this->patient['age'] : null,
+            'name'   => $this->patient['name'],
+            'contact'=> $this->patient['contact'] ?? null,
+            'age'    => is_numeric($this->patient['age']) ? (int) $this->patient['age'] : null,
             'gender' => $this->patient['gender'] ?? null,
         ]);
 
@@ -177,10 +178,7 @@ new class extends Component {
         $transactions = [];
 
         foreach ($this->selectedTests as $test) {
-            $labTest = LabTest::find($test['test_id']);
-            $price = $test['price'];
-            $costPrice = ($labTest->price * $labTest->cost_price_percentage / 100);
-            $profit = $price - $costPrice;
+            $profit = $test['price'] - $test['cost_price'];
 
             $doctorShare = 0;
             $hospitalShare = $profit;
@@ -194,16 +192,19 @@ new class extends Component {
                 $hospitalShare = ($hospitalSharePercent / 100) * $profit;
             }
 
-            $transaction = LabTestTransaction::create([
-                'patient_id' => $patient->id,
-                'lab_test_id' => $test['test_id'],
-                'doctor_id' => $this->selectedDoctor,
-                'amount' => $price,
-                'doctor_share' => $doctorShare,
+            $transactionData = [
+                'patient_id'     => $patient->id,
+                'lab_test_id'    => $test['test_id'],
+                'amount'         => $test['price'],
+                'doctor_share'   => $doctorShare,
                 'hospital_share' => $hospitalShare,
-            ]);
+            ];
 
-            $transactions[] = $transaction;
+            if ($this->selectedDoctor) {
+                $transactionData['doctor_id'] = $this->selectedDoctor;
+            }
+
+            $transactions[] = LabTestTransaction::create($transactionData);
         }
 
         return $transactions;
@@ -213,74 +214,66 @@ new class extends Component {
     {
         $payment = Payment::create([
             'patient_id' => $patient->id,
-            'amount' => $this->totalPrice,
-            'method' => $this->paymentMethod,
-            'remarks' => 'Lab test payment',
+            'amount'     => $this->totalPrice,
+            'method'     => $this->paymentMethod,
+            'remarks'    => 'Lab test payment',
         ]);
 
         foreach ($transactions as $txn) {
             PaymentLab::create([
-                'payment_id' => $payment->id,
-                'lab_test_transaction_id' => $txn->id,
-                'amount' => $txn->amount,
+                'payment_id'               => $payment->id,
+                'lab_test_transaction_id'  => $txn->id,
+                'amount'                   => $txn->amount,
             ]);
         }
     }
 
-    private function print($patient, $transactions)
+    /* ------------------------
+     | Printing
+     ------------------------ */
+    private function printReceipt($patient)
     {
         try {
-            $tests = collect($this->selectedTests)->map(function ($test) {
-                return [
-                    'name' => $test['test_name'],
-                    'original_price' => $test['original_price'],
-                    'discounted_price' => $test['price'],
-                ];
-            });
+            $tests = collect($this->selectedTests)->map(fn($test) => [
+                'name'             => $test['test_name'],
+                'original_price'   => $test['original_price'],
+                'discounted_price' => $test['price'],
+            ]);
 
-            $totalOriginal = collect($this->selectedTests)->sum('original_price');
-            $discountPercent = $this->discount;
-            $finalTotal = $this->totalPrice;
+            $totalOriginal  = collect($this->selectedTests)->sum('original_price');
+            $discountPercent= $this->discount;
+            $finalTotal     = $this->totalPrice;
 
             $this->printLabReceipt($patient, $tests, $totalOriginal, $discountPercent, $finalTotal);
-
-
-
         } catch (\Exception $e) {
             logger()->error('Receipt print failed: ' . $e->getMessage());
         }
     }
 
-
-    // End
+    /* ------------------------
+     | Utilities
+     ------------------------ */
     public function resetForm()
     {
-        $this->patient = [
-            'name' => '',
-            'contact' => '',
-            'age' => '',
-            'gender' => '',
-        ];
+        $this->patient = ['name' => '', 'contact' => '', 'age' => '', 'gender' => ''];
         $this->selectedTests = [];
-        $this->selectedTest = $this->labTests->first()->id ?? null; // Set default selected test
+        $this->originalTests = [];
+        $this->selectedTest = $this->labTests->first()->id ?? null;
+        $this->discount = null;
         $this->totalPrice = 0;
-        $this->price = null;
         $this->paymentMethod = "Cash";
-        $this->mount();
-
+        $this->selectedDoctor = null;
     }
 
     public function showToast($type, $message)
     {
         $this->dispatch('notify', [
-            'type' => $type,
+            'type'    => $type,
             'message' => $message,
         ]);
     }
-
-
-
-}?>
+};
+?>
 
 <div>
     <div class=" p-4 m-4 rounded-lg border">
