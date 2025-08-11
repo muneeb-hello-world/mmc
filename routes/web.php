@@ -59,6 +59,7 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('showtransactions', 'showTransactions')->name('showtrans');
     Volt::route('case/view/{id}', 'casesView')->name('caseview');
     Volt::route('bookings', 'bookings')->name('bookings');
+    Volt::route('sendsms', 'sendWhatsapp')->name('sendsms');
 
 });
 

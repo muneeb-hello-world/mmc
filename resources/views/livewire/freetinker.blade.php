@@ -4,6 +4,7 @@ use Livewire\Volt\Component;
 use Carbon\Carbon;
 use App\Models\Doctor;
 use App\Models\ServiceTransaction;
+use App\Models\CurrentToken;
 
 
 
@@ -91,6 +92,14 @@ new class extends Component {
 
     public function e($e)
     {
+        CurrentToken::updateOrCreate(
+        ['doctor_id' => $e->doctor_id], // Match doctor
+        [
+            'token_number' => $e->token,
+            'patient_name' => $e->patient->name
+        ]
+    );
+
         $this->dispatch('announce-token', [
             'name' => $e->patient->name,
             'token' => $e->token
@@ -108,6 +117,7 @@ new class extends Component {
 ?>
 
 <div class="">
+    <livewire:currenttoken/>
 
     {{-- @foreach($doctors as $item)
     <div wire:click="getFirst({{ $item->id }})">{{ $item->name }}</div>
